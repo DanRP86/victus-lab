@@ -1,0 +1,3004 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+public/
+  file.svg
+  globe.svg
+  next.svg
+  vercel.svg
+  window.svg
+src/
+  app/
+    calendar-lab/
+      page.tsx
+    favicon.ico
+    globals.css
+    layout.tsx
+    page.tsx
+  components/
+    calendar/
+      MealSlotCell.tsx
+      WeeklyCalendar.tsx
+    meals/
+      MealsBrowser.tsx
+    nutrition/
+      QuickLogModal.tsx
+    telemetry/
+      MicronutrientDrawer.tsx
+      TelemetryBar.tsx
+      TelemetryDial.tsx
+  data/
+    archetypes.ts
+    cookingModifiers.ts
+  hooks/
+    useNutritionTelemetry.ts
+  types/
+    nutrition.ts
+.gitignore
+AGENTS.md
+CLAUDE.md
+dirlist.txt
+eslint.config.mjs
+next.config.ts
+package.json
+postcss.config.mjs
+README.md
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/app/calendar-lab/page.tsx">
+'use client';
+
+import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    ArrowUpRight,
+    ChevronLeft,
+    ChevronRight,
+    Wind,
+    Activity,
+    Flame,
+    ShieldAlert,
+    Sparkles,
+    Check,
+    X,
+    Compass,
+    Maximize2
+} from 'lucide-react';
+
+// --- ATHLETE DATA TYPES ---
+type Category = 'climbing' | 'strength' | 'aerobic' | 'windsurf' | 'work' | 'social' | 'mobility';
+type EventStatus = 'completed' | 'planned' | 'constraint';
+
+interface CalendarEvent {
+    id: string;
+    title: string;
+    subtitle?: string;
+    category: Category;
+    status: EventStatus;
+    time: string;
+    durationMin: number;
+    // Exposure 0 to 3
+    exposure?: {
+        grip: 0 | 1 | 2 | 3;
+        pull: 0 | 1 | 2 | 3;
+        push: 0 | 1 | 2 | 3;
+        shoulder: 0 | 1 | 2 | 3;
+        core: 0 | 1 | 2 | 3;
+    };
+    notes?: string;
+    constraintRationale?: string;
+}
+
+interface NutritionSummary {
+    caloricDelta: number; // e.g. +450 or -200
+    freshScorePct: number;
+    ratioNaK: number;
+    socialExposure?: string;
+}
+
+interface DayData {
+    id: string; // YYYY-MM-DD
+    dateNum: number;
+    dayOfWeek: string;
+    isToday?: boolean;
+    loadScore: number; // 0 to 100 for terrain curve
+    loadLabel: 'Light' | 'Moderate' | 'Heavy' | 'Peak';
+    events: CalendarEvent[];
+    nutrition: NutritionSummary;
+}
+
+// --- REALISTIC ATHLETE WEEK MOCK (WEEK 38) ---
+const MOCK_WEEK: DayData[] = [
+    {
+        id: '2026-09-14',
+        dateNum: 14,
+        dayOfWeek: 'MON',
+        loadScore: 68,
+        loadLabel: 'Moderate',
+        events: [
+            {
+                id: 'e-1',
+                title: 'Office On-Site',
+                subtitle: 'Headquarters · Madrid',
+                category: 'work',
+                status: 'constraint',
+                time: '09:00 — 18:00',
+                durationMin: 540,
+                notes: 'Blocks morning and afternoon windows.',
+            },
+            {
+                id: 'e-2',
+                title: 'Bouldering Session',
+                subtitle: 'Sputnik Las Rozas · High Power',
+                category: 'climbing',
+                status: 'completed',
+                time: '19:15 — 21:00',
+                durationMin: 105,
+                exposure: { grip: 3, pull: 3, push: 0, shoulder: 2, core: 2 },
+                notes: 'Target: 7A boulder circuits + board contact power.',
+                constraintRationale: 'Executed. 48h finger tendon recovery timer initiated.',
+            },
+        ],
+        nutrition: {
+            caloricDelta: -120,
+            freshScorePct: 74,
+            ratioNaK: 0.88,
+        },
+    },
+    {
+        id: '2026-09-15',
+        dateNum: 15,
+        dayOfWeek: 'TUE',
+        loadScore: 42,
+        loadLabel: 'Light',
+        events: [
+            {
+                id: 'e-3',
+                title: 'Strategy Workshops',
+                subtitle: 'Continuous meetings',
+                category: 'work',
+                status: 'constraint',
+                time: '09:30 — 17:30',
+                durationMin: 480,
+            },
+            {
+                id: 'e-4',
+                title: 'Push & Scapular Micro',
+                subtitle: 'Antagonist compensation',
+                category: 'strength',
+                status: 'completed',
+                time: '18:15 — 18:45',
+                durationMin: 30,
+                exposure: { grip: 0, pull: 0, push: 2, shoulder: 2, core: 1 },
+                notes: 'Overhead kettlebell presses, ring dips & scap pull-ins.',
+                constraintRationale: 'Zero pull/grip stimulus to respect Monday recovery.',
+            },
+            {
+                id: 'e-5',
+                title: 'Team Dinner',
+                subtitle: 'Tapas & Social drinks',
+                category: 'social',
+                status: 'completed',
+                time: '20:45 — 23:00',
+                durationMin: 135,
+                notes: 'High sodium intake compensated with baseline hydration.',
+            },
+        ],
+        nutrition: {
+            caloricDelta: 620,
+            freshScorePct: 35,
+            ratioNaK: 1.45,
+            socialExposure: 'Social Feast',
+        },
+    },
+    {
+        id: '2026-09-16',
+        dateNum: 16,
+        dayOfWeek: 'WED',
+        loadScore: 48,
+        loadLabel: 'Light',
+        events: [
+            {
+                id: 'e-6',
+                title: 'Aerobic Zone 2',
+                subtitle: 'Steady State Endurance',
+                category: 'aerobic',
+                status: 'planned',
+                time: '18:30 — 19:25',
+                durationMin: 55,
+                exposure: { grip: 0, pull: 0, push: 0, shoulder: 0, core: 1 },
+                notes: 'Low eccentric cost. Flushes metabolic byproducts before Thursday.',
+                constraintRationale: 'Keeps upper body fresh for planned strength workout.',
+            },
+        ],
+        nutrition: {
+            caloricDelta: -180,
+            freshScorePct: 82,
+            ratioNaK: 0.72,
+        },
+    },
+    {
+        id: '2026-09-17',
+        dateNum: 17,
+        dayOfWeek: 'THU',
+        loadScore: 72,
+        loadLabel: 'Heavy',
+        events: [
+            {
+                id: 'e-7',
+                title: 'Compact Strength',
+                subtitle: 'Lower Posterior & Chest',
+                category: 'strength',
+                status: 'planned',
+                time: '18:00 — 19:10',
+                durationMin: 70,
+                exposure: { grip: 1, pull: 1, push: 3, shoulder: 2, core: 2 },
+                notes: 'Romanian deadlifts, weighted push-ups & anti-rotational core.',
+                constraintRationale: 'Scheduled before wind trip to ensure full weekly muscle coverage.',
+            },
+            {
+                id: 'e-8',
+                title: 'Corporate Dinner',
+                subtitle: 'Restaurante Asador',
+                category: 'social',
+                status: 'planned',
+                time: '21:00 — 23:30',
+                durationMin: 150,
+            },
+        ],
+        nutrition: {
+            caloricDelta: 540,
+            freshScorePct: 40,
+            ratioNaK: 1.32,
+            socialExposure: 'Business Dinner',
+        },
+    },
+    {
+        id: '2026-09-18',
+        dateNum: 18,
+        dayOfWeek: 'FRI',
+        isToday: true,
+        loadScore: 94,
+        loadLabel: 'Peak',
+        events: [
+            {
+                id: 'e-9',
+                title: 'Windsurf / Wingfoil',
+                subtitle: 'Embalse del Ebro · 24-28 knots',
+                category: 'windsurf',
+                status: 'planned',
+                time: '14:30 — 18:00',
+                durationMin: 210,
+                exposure: { grip: 3, pull: 3, push: 1, shoulder: 3, core: 3 },
+                notes: 'High gust wind forecast. Spontaneous outdoor adaptation.',
+                constraintRationale: 'Dominates calendar. Suppresses Saturday indoor sessions.',
+            },
+        ],
+        nutrition: {
+            caloricDelta: -750,
+            freshScorePct: 65,
+            ratioNaK: 0.95,
+        },
+    },
+    {
+        id: '2026-09-19',
+        dateNum: 19,
+        dayOfWeek: 'SAT',
+        loadScore: 88,
+        loadLabel: 'Peak',
+        events: [
+            {
+                id: 'e-10',
+                title: 'Outdoor Crag Climbing',
+                subtitle: 'Cuenca · Las Hoces (Limestone)',
+                category: 'climbing',
+                status: 'planned',
+                time: '11:00 — 17:30',
+                durationMin: 390,
+                exposure: { grip: 3, pull: 2, push: 0, shoulder: 2, core: 2 },
+                notes: 'Sustained endurance routes (6c - 7b). Campervan base.',
+                constraintRationale: 'Outdoor trip. High grip strain.',
+            },
+            {
+                id: 'e-11',
+                title: 'Crag Dinner & Fire',
+                subtitle: 'Campervan Cookout',
+                category: 'social',
+                status: 'planned',
+                time: '20:30 — 22:30',
+                durationMin: 120,
+            },
+        ],
+        nutrition: {
+            caloricDelta: 210,
+            freshScorePct: 58,
+            ratioNaK: 1.05,
+        },
+    },
+    {
+        id: '2026-09-20',
+        dateNum: 20,
+        dayOfWeek: 'SUN',
+        loadScore: 25,
+        loadLabel: 'Light',
+        events: [
+            {
+                id: 'e-12',
+                title: 'Mobility & Fascial Flow',
+                subtitle: 'Deep recovery & hips',
+                category: 'mobility',
+                status: 'planned',
+                time: '10:30 — 11:15',
+                durationMin: 45,
+                exposure: { grip: 0, pull: 0, push: 0, shoulder: 1, core: 1 },
+                notes: 'Low systemic strain. Restores tissue elasticity.',
+                constraintRationale: 'Permits neural rest prior to Week 39.',
+            },
+        ],
+        nutrition: {
+            caloricDelta: -250,
+            freshScorePct: 88,
+            ratioNaK: 0.65,
+        },
+    },
+];
+
+// --- STYLING TOKEN HELPERS ---
+const CATEGORY_COLORS: Record<Category, { text: string; bg: string; border: string; accent: string }> = {
+    climbing: { text: 'text-[#4FE3C1]', bg: 'bg-[#4FE3C1]/5', border: 'border-[#4FE3C1]/30', accent: '#4FE3C1' },
+    strength: { text: 'text-[#3B82F6]', bg: 'bg-[#3B82F6]/5', border: 'border-[#3B82F6]/30', accent: '#3B82F6' },
+    windsurf: { text: 'text-[#38BDF8]', bg: 'bg-[#38BDF8]/5', border: 'border-[#38BDF8]/30', accent: '#38BDF8' },
+    aerobic: { text: 'text-[#818CF8]', bg: 'bg-[#818CF8]/5', border: 'border-[#818CF8]/30', accent: '#818CF8' },
+    work: { text: 'text-[#94A3B8]', bg: 'bg-[#94A3B8]/5', border: 'border-[#94A3B8]/20', accent: '#64748B' },
+    social: { text: 'text-[#F59E0B]', bg: 'bg-[#F59E0B]/5', border: 'border-[#F59E0B]/30', accent: '#F59E0B' },
+    mobility: { text: 'text-[#55E3D0]', bg: 'bg-[#55E3D0]/5', border: 'border-[#55E3D0]/30', accent: '#55E3D0' },
+};
+
+export default function CalendarLabMockup() {
+    const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
+    const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+    const [hoveredDayId, setHoveredDayId] = useState<string | null>(null);
+
+    const selectedDay = useMemo(() => {
+        return MOCK_WEEK.find((d) => d.id === selectedDayId) || null;
+    }, [selectedDayId]);
+
+    const activeHoverEvent = useMemo(() => {
+        if (!hoveredEventId) return null;
+        for (const d of MOCK_WEEK) {
+            const ev = d.events.find((e) => e.id === hoveredEventId);
+            if (ev) return ev;
+        }
+        return null;
+    }, [hoveredEventId]);
+
+    return (
+        <div className="relative min-h-screen w-full bg-[#05070A] text-[#D8DEE5] selection:bg-[#4FE3C1] selection:text-black overflow-hidden font-sans">
+            {/* Background Precision Grid */}
+            <div
+                className="pointer-events-none absolute inset-0 z-0 opacity-40"
+                style={{
+                    backgroundImage: `
+            linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px)
+          `,
+                    backgroundSize: '40px 40px',
+                }}
+            />
+
+            {/* --- GLOBAL INSTRUMENT HEADER --- */}
+            <header className="relative z-20 border-b border-white/[0.05] bg-[#05070A]/80 px-8 py-5 backdrop-blur-md">
+                <div className="mx-auto flex max-w-[1600px] items-center justify-between">
+                    <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2.5">
+                            <div className="h-2 w-2 rounded-full bg-[#4FE3C1] shadow-[0_0_10px_#4FE3C1]" />
+                            <span className="font-mono text-xs font-semibold tracking-[0.28em] text-white">
+                                VICTUS <span className="text-[#4FE3C1]">LAB</span>
+                            </span>
+                        </div>
+                        <div className="h-3 w-[1px] bg-white/10" />
+                        <span className="font-mono text-[11px] uppercase tracking-widest text-[#626D7C]">
+                            Adaptive Calendar Prototype
+                        </span>
+                    </div>
+
+                    {/* Temporal Position Metadata */}
+                    <div className="flex items-center gap-8 font-mono text-xs">
+                        <div className="flex items-center gap-2">
+                            <span className="text-white font-medium">WEEK 38</span>
+                            <span className="text-[#626D7C]">·</span>
+                            <span className="text-[#A0ABC0]">14 — 20 SEP 2026</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] p-0.5">
+                            <button className="rounded px-2.5 py-1 text-[11px] font-mono text-white transition hover:bg-white/5">
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                            </button>
+                            <span className="px-2 font-mono text-[10px] uppercase tracking-wider text-[#4FE3C1]">
+                                Current
+                            </span>
+                            <button className="rounded px-2.5 py-1 text-[11px] font-mono text-white transition hover:bg-white/5">
+                                <ChevronRight className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            {/* --- 2.5D CONTINUOUS PERFORMANCE LANDSCAPE --- */}
+            <main className="relative z-10 mx-auto flex max-w-[1600px] flex-col px-8 pt-8 pb-12">
+                {/* Landscape Status Subheader */}
+                <div className="mb-6 flex items-end justify-between border-b border-white/[0.04] pb-4">
+                    <div>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-[#626D7C]">
+                            Multi-Sport Exposure & Constraint Engine
+                        </span>
+                        <h1 className="mt-1 font-sans text-2xl font-light tracking-tight text-white">
+                            Weekly Performance Landscape
+                        </h1>
+                    </div>
+
+                    <div className="flex items-center gap-6 font-mono text-xs text-[#626D7C]">
+                        <div className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                            <span>Completed</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full border border-white/60" />
+                            <span>Planned (Adaptive)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#64748B]" />
+                            <span>Real-Life Constraint</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 2.5D SPATIAL STAGE CONTAINER */}
+                <div
+                    className="relative min-h-[640px] w-full"
+                    style={{ perspective: '1800px' }}
+                >
+                    <motion.div
+                        layout
+                        className="grid h-full w-full grid-cols-7 divide-x divide-white/[0.05] border-y border-white/[0.05] bg-[#0B0E14]/40 backdrop-blur-sm"
+                        style={{ transformStyle: 'preserve-3d' }}
+                    >
+                        {MOCK_WEEK.map((day) => {
+                            const isSelected = selectedDayId === day.id;
+                            const hasSelection = selectedDayId !== null;
+
+                            // 2.5D Spatial Transformation:
+                            // - If this day is selected: translateZ forward (+60px), scale up slightly.
+                            // - If another day is selected: translateZ backward (-80px), scale down, opacity drops.
+                            let zOffset = 0;
+                            let scaleOffset = 1;
+                            let opacityOffset = 1;
+
+                            if (hasSelection) {
+                                if (isSelected) {
+                                    zOffset = 50;
+                                    scaleOffset = 1.02;
+                                    opacityOffset = 1;
+                                } else {
+                                    zOffset = -60;
+                                    scaleOffset = 0.98;
+                                    opacityOffset = 0.35;
+                                }
+                            }
+
+                            return (
+                                <motion.div
+                                    key={day.id}
+                                    onClick={() => setSelectedDayId(isSelected ? null : day.id)}
+                                    onMouseEnter={() => setHoveredDayId(day.id)}
+                                    onMouseLeave={() => setHoveredDayId(null)}
+                                    animate={{
+                                        z: zOffset,
+                                        scale: scaleOffset,
+                                        opacity: opacityOffset,
+                                    }}
+                                    transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+                                    className={`group relative flex flex-col justify-between p-4.5 transition-colors cursor-pointer select-none ${isSelected
+                                            ? 'bg-[#141822]/90 shadow-[0_0_50px_rgba(0,0,0,0.8)] ring-1 ring-[#4FE3C1]/30 z-30'
+                                            : 'hover:bg-white/[0.015]'
+                                        }`}
+                                >
+                                    {/* --- TOP: DAY TYPOGRAPHY & INDICATORS --- */}
+                                    <div>
+                                        <div className="flex items-baseline justify-between">
+                                            <span className={`font-mono text-xs font-semibold tracking-wider ${day.isToday ? 'text-[#4FE3C1]' : 'text-[#626D7C]'
+                                                }`}>
+                                                {day.dayOfWeek}
+                                            </span>
+                                            {day.isToday && (
+                                                <span className="rounded bg-[#4FE3C1]/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#4FE3C1]">
+                                                    Today
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="mt-1 flex items-baseline gap-2">
+                                            <span className="font-mono text-3xl font-light text-white tracking-tight tabular-nums">
+                                                {day.dateNum}
+                                            </span>
+                                            <span className={`font-mono text-[10px] uppercase ${day.loadLabel === 'Peak' ? 'text-[#FF4B4B]' :
+                                                    day.loadLabel === 'Heavy' ? 'text-[#F59E0B]' :
+                                                        'text-[#626D7C]'
+                                                }`}>
+                                                {day.loadLabel}
+                                            </span>
+                                        </div>
+
+                                        {/* Hairline spacer */}
+                                        <div className="my-4 h-[1px] w-full bg-white/[0.05]" />
+
+                                        {/* --- CENTER: CONTINUOUS PERFORMANCE EVENTS --- */}
+                                        <div className="flex flex-col gap-2.5 min-h-[300px]">
+                                            {day.events.map((ev) => {
+                                                const isCompleted = ev.status === 'completed';
+                                                const isConstraint = ev.status === 'constraint';
+                                                const colorStyle = CATEGORY_COLORS[ev.category];
+
+                                                return (
+                                                    <motion.div
+                                                        key={ev.id}
+                                                        onMouseEnter={(e) => {
+                                                            e.stopPropagation();
+                                                            setHoveredEventId(ev.id);
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.stopPropagation();
+                                                            setHoveredEventId(null);
+                                                        }}
+                                                        whileHover={{ y: -2 }}
+                                                        className={`relative rounded-lg p-3 transition-all ${isCompleted
+                                                                ? 'bg-[#171B22] border border-white/[0.12] text-white shadow-sm'
+                                                                : isConstraint
+                                                                    ? 'bg-white/[0.015] border border-dashed border-white/[0.1] text-[#94A3B8]'
+                                                                    : 'bg-white/[0.02] border border-white/[0.18] text-white' // Planned outline
+                                                            }`}
+                                                    >
+                                                        {/* Accent edge indicator */}
+                                                        <div
+                                                            className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r"
+                                                            style={{ backgroundColor: colorStyle.accent }}
+                                                        />
+
+                                                        <div className="flex items-center justify-between pl-1.5 font-mono text-[9px] text-[#626D7C]">
+                                                            <span>{ev.time}</span>
+                                                            <span className="uppercase">{ev.durationMin}m</span>
+                                                        </div>
+
+                                                        <div className="mt-1 pl-1.5">
+                                                            <h4 className="font-sans text-xs font-medium leading-snug tracking-tight text-white">
+                                                                {ev.title}
+                                                            </h4>
+                                                            {ev.subtitle && (
+                                                                <p className="mt-0.5 font-mono text-[10px] text-[#626D7C] line-clamp-1">
+                                                                    {ev.subtitle}
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Exposure Micro-Dots if available */}
+                                                        {ev.exposure && (
+                                                            <div className="mt-2.5 flex items-center gap-3 border-t border-white/[0.04] pt-2 pl-1.5 font-mono text-[9px] text-[#626D7C]">
+                                                                {ev.exposure.grip > 0 && (
+                                                                    <span className="text-[#4FE3C1]">Grip {ev.exposure.grip}</span>
+                                                                )}
+                                                                {ev.exposure.pull > 0 && (
+                                                                    <span className="text-[#3B82F6]">Pull {ev.exposure.pull}</span>
+                                                                )}
+                                                                {ev.exposure.push > 0 && (
+                                                                    <span className="text-[#F59E0B]">Push {ev.exposure.push}</span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </motion.div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* --- BOTTOM: MUSCLE STRAIN & NUTRITION TELEMETRY --- */}
+                                    <div className="border-t border-white/[0.05] pt-3.5 mt-4 space-y-3">
+                                        {/* Muscle Load Vector Strip */}
+                                        <div>
+                                            <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-wider text-[#626D7C]">
+                                                <span>Tissue Strain</span>
+                                                <span className="tabular-nums">{day.loadScore}%</span>
+                                            </div>
+                                            <div className="mt-1.5 flex h-1 w-full gap-0.5 rounded-full bg-white/[0.04] overflow-hidden">
+                                                <div
+                                                    className={`h-full ${day.loadScore > 80 ? 'bg-[#FF4B4B]' :
+                                                            day.loadScore > 50 ? 'bg-[#F59E0B]' :
+                                                                'bg-[#4FE3C1]'
+                                                        }`}
+                                                    style={{ width: `${day.loadScore}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Fuel Telemetry */}
+                                        <div className="flex items-baseline justify-between font-mono text-[10px]">
+                                            <span className="text-[#626D7C]">Fuel:</span>
+                                            <span className={day.nutrition.caloricDelta > 0 ? 'text-[#F59E0B]' : 'text-[#4FE3C1]'}>
+                                                {day.nutrition.caloricDelta > 0 ? `+${day.nutrition.caloricDelta}` : day.nutrition.caloricDelta} kcal
+                                            </span>
+                                            <span className="text-[#626D7C]">Na/K {day.nutrition.ratioNaK}</span>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </motion.div>
+
+                    {/* --- LAYER 3: SPATIAL DEEP-DIVE INSPECTOR PANEL --- */}
+                    <AnimatePresence>
+                        {selectedDay && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                                className="absolute right-0 top-0 bottom-0 z-40 w-full max-w-md border-l border-white/[0.12] bg-[#0A0D13]/95 p-7 shadow-[-30px_0_90px_rgba(0,0,0,0.9)] backdrop-blur-2xl overflow-y-auto"
+                            >
+                                {/* Header */}
+                                <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
+                                    <div>
+                                        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#4FE3C1]">
+                                            Deep Dive Telemetry · Layer 3
+                                        </span>
+                                        <h3 className="mt-1 font-sans text-xl font-light text-white">
+                                            {selectedDay.dayOfWeek}, September {selectedDay.dateNum}
+                                        </h3>
+                                    </div>
+                                    <button
+                                        onClick={() => setSelectedDayId(null)}
+                                        className="rounded-lg p-1.5 text-[#626D7C] hover:bg-white/5 hover:text-white transition"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+
+                                {/* Content */}
+                                <div className="mt-6 space-y-6">
+                                    {/* Consecutive-Day Constraint Logic */}
+                                    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                                        <span className="font-mono text-[10px] uppercase tracking-wider text-[#626D7C] block mb-2">
+                                            Adaptive Scheduling Rules
+                                        </span>
+                                        <p className="font-sans text-xs leading-relaxed text-[#A0ABC0]">
+                                            {selectedDay.events.find((e) => e.constraintRationale)?.constraintRationale ||
+                                                'No conflicting tissue stress detected. Available for secondary athletic stimuli.'}
+                                        </p>
+                                    </div>
+
+                                    {/* Muscle Group Coverage Vector */}
+                                    <div className="space-y-3">
+                                        <span className="font-mono text-[10px] uppercase tracking-wider text-[#626D7C]">
+                                            Cumulative Physical Exposure
+                                        </span>
+                                        <div className="space-y-2">
+                                            {[
+                                                { name: 'Grip & Finger Flexors', level: selectedDay.loadScore > 60 ? 3 : 1 },
+                                                { name: 'Posterior Pulling Chain', level: selectedDay.loadScore > 50 ? 2 : 0 },
+                                                { name: 'Antagonist Pushing & Scapular', level: selectedDay.dateNum === 15 ? 2 : 0 },
+                                                { name: 'Core Tension & Anti-Rotation', level: selectedDay.loadScore > 70 ? 3 : 1 },
+                                            ].map((item) => (
+                                                <div key={item.name} className="flex items-center justify-between font-mono text-xs">
+                                                    <span className="text-[#A0ABC0]">{item.name}</span>
+                                                    <div className="flex gap-1">
+                                                        {[1, 2, 3].map((dot) => (
+                                                            <div
+                                                                key={dot}
+                                                                className={`h-2 w-2 rounded-full ${dot <= item.level ? 'bg-[#4FE3C1]' : 'bg-white/10'
+                                                                    }`}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Nutritional Consequence */}
+                                    <div className="space-y-3 border-t border-white/[0.06] pt-6">
+                                        <span className="font-mono text-[10px] uppercase tracking-wider text-[#626D7C]">
+                                            Nutritional Correlation
+                                        </span>
+                                        <div className="grid grid-cols-2 gap-3 font-mono text-xs">
+                                            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                                                <span className="text-[10px] text-[#626D7C] block">Energy Balance</span>
+                                                <span className="mt-1 text-base font-medium text-white tabular-nums">
+                                                    {selectedDay.nutrition.caloricDelta > 0 ? `+${selectedDay.nutrition.caloricDelta}` : selectedDay.nutrition.caloricDelta} kcal
+                                                </span>
+                                            </div>
+                                            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                                                <span className="text-[10px] text-[#626D7C] block">Na / K Ratio</span>
+                                                <span className="mt-1 text-base font-medium text-white tabular-nums">
+                                                    {selectedDay.nutrition.ratioNaK}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                {/* --- WEEKLY LOAD TERRAIN CURVE (BOTTOM HUD) --- */}
+                <div className="mt-8 border-t border-white/[0.05] pt-6">
+                    <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-[#626D7C] mb-3">
+                        <span>Weekly Acute Load Landscape</span>
+                        <span>Capacity Horizon: 75% Optimal</span>
+                    </div>
+
+                    <div className="relative h-20 w-full overflow-hidden">
+                        <svg className="h-full w-full" preserveAspectRatio="none" viewBox="0 0 700 80">
+                            <defs>
+                                <linearGradient id="terrainGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#4FE3C1" stopOpacity="0.25" />
+                                    <stop offset="100%" stopColor="#4FE3C1" stopOpacity="0.0" />
+                                </linearGradient>
+                            </defs>
+
+                            {/* Area fill */}
+                            <path
+                                d="M 0 80 L 50 30 L 150 55 L 250 50 L 350 25 L 450 10 L 550 15 L 650 65 L 700 80 Z"
+                                fill="url(#terrainGrad)"
+                            />
+
+                            {/* Stroke line */}
+                            <path
+                                d="M 0 80 L 50 30 L 150 55 L 250 50 L 350 25 L 450 10 L 550 15 L 650 65 L 700 80"
+                                fill="none"
+                                stroke="#4FE3C1"
+                                strokeWidth="1.5"
+                            />
+
+                            {/* Data points */}
+                            {[
+                                { x: 50, y: 30 },
+                                { x: 150, y: 55 },
+                                { x: 250, y: 50 },
+                                { x: 350, y: 25 },
+                                { x: 450, y: 10 },
+                                { x: 550, y: 15 },
+                                { x: 650, y: 65 },
+                            ].map((pt, idx) => (
+                                <circle
+                                    key={idx}
+                                    cx={pt.x}
+                                    cy={pt.y}
+                                    r="3.5"
+                                    className="fill-[#05070A] stroke-[#4FE3C1] stroke-2 transition-all hover:r-5 cursor-pointer"
+                                />
+                            ))}
+                        </svg>
+                    </div>
+                </div>
+            </main>
+        </div>
+    );
+}
+</file>
+
+<file path="src/components/calendar/MealSlotCell.tsx">
+'use client';
+
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Plus, X, Wine, CakeSlice } from 'lucide-react';
+import { MealEntry, FoodArchetype, Language } from '@/types/nutrition';
+
+interface MealSlotCellProps {
+    meal?: MealEntry;
+    archetype?: FoodArchetype;
+    lang: Language;
+    onSelect: () => void;
+    onRemove: (e: React.MouseEvent) => void;
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+    fast_food: '#FF6B6B',
+    retail_convenience: '#4FE3C1',
+    restaurant_social: '#F59E0B',
+    home_cooked: '#3B82F6',
+};
+
+export const MealSlotCell: React.FC<MealSlotCellProps> = ({
+    meal,
+    archetype,
+    lang,
+    onSelect,
+    onRemove,
+}) => {
+    return (
+        <motion.div
+            onClick={onSelect}
+            whileTap={{ scale: 0.98 }}
+            className="group relative flex min-h-[96px] cursor-pointer flex-col justify-between rounded-lg border border-transparent p-2.5 transition-all duration-200 hover:border-white/[0.12] hover:bg-white/[0.03]"
+        >
+            {meal && archetype ? (
+                <>
+                    <div>
+                        <div className="flex items-start justify-between gap-1">
+                            <span className="line-clamp-2 text-xs font-medium leading-snug text-white group-hover:text-[#4FE3C1] transition-colors">
+                                {archetype.name[lang]}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={onRemove}
+                                className="opacity-0 transition-opacity duration-150 group-hover:opacity-100 p-0.5 text-[#88929E] hover:text-[#FF6B6B]"
+                            >
+                                <X className="h-3 w-3" />
+                            </button>
+                        </div>
+                        <div className="mt-1 font-mono text-[10px] text-[#4FE3C1] tabular-nums">
+                            ~{archetype.nutrients.kcal} kcal
+                        </div>
+                    </div>
+
+                    <div className="mt-2 flex items-center gap-1.5">
+                        <span
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ backgroundColor: CATEGORY_COLORS[archetype.category] || '#88929E' }}
+                        />
+                        <span className="font-mono text-[9px] uppercase tracking-wider text-[#88929E]">
+                            {meal.portion}
+                        </span>
+                        {meal.alcoholUnits > 0 && <Wine className="h-2.5 w-2.5 text-[#FF6B6B]" />}
+                        {meal.hasDessert && <CakeSlice className="h-2.5 w-2.5 text-[#F59E0B]" />}
+                    </div>
+                </>
+            ) : (
+                <div className="flex h-full items-center justify-center text-white/20 transition-all duration-200 group-hover:scale-110 group-hover:text-[#4FE3C1]">
+                    <Plus className="h-4 w-4" />
+                </div>
+            )}
+        </motion.div>
+    );
+};
+</file>
+
+<file path="src/components/calendar/WeeklyCalendar.tsx">
+'use client';
+
+import React from 'react';
+import { MealSlotCell } from './MealSlotCell';
+import { MealEntry, FoodArchetype, MealSlot, Language } from '@/types/nutrition';
+
+export interface CalendarDay {
+    id: string; // YYYY-MM-DD
+    short: Record<Language, string>;
+}
+
+interface WeeklyCalendarProps {
+    days: CalendarDay[];
+    slots: { id: MealSlot; name: Record<Language, string> }[];
+    meals: MealEntry[];
+    archetypesMap: Map<string, FoodArchetype>;
+    lang: Language;
+    onSlotClick: (date: string, slot: MealSlot) => void;
+    onRemoveMeal: (date: string, slot: MealSlot, e: React.MouseEvent) => void;
+}
+
+export const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({
+    days,
+    slots,
+    meals,
+    archetypesMap,
+    lang,
+    onSlotClick,
+    onRemoveMeal,
+}) => {
+    return (
+        <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#12161B]/80 backdrop-blur-md">
+            <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
+                <div>
+                    <h2 className="font-mono text-xs uppercase tracking-widest text-white">
+                        {lang === 'es' ? 'Agenda de Comidas' : 'Weekly Nutrition Grid'}
+                    </h2>
+                    <p className="mt-0.5 text-xs text-[#88929E]">
+                        {lang === 'es' ? 'Planificación rápida en 3 clics' : '3-click quick log & projection'}
+                    </p>
+                </div>
+                <span className="font-mono text-xs text-[#88929E]">
+                    {lang === 'es' ? 'Semana 38 · 2026' : 'Week 38 · 2026'}
+                </span>
+            </div>
+
+            <div className="overflow-x-auto">
+                <div className="min-w-[800px]">
+                    {/* Day Headers */}
+                    <div className="grid grid-cols-7 border-b border-white/[0.06] bg-white/[0.02] py-2.5 text-center">
+                        {days.map((day) => (
+                            <div key={day.id} className="font-mono text-xs text-[#D8DEE5]">
+                                <span>{day.short[lang]}</span>
+                                <span className="mt-0.5 block text-[10px] text-[#88929E]">
+                                    {day.id.split('-')[2]}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Meal Slots Rows */}
+                    {slots.map((slot) => (
+                        <div key={slot.id} className="border-b border-white/[0.06] last:border-b-0">
+                            <div className="border-b border-white/[0.03] bg-white/[0.01] px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider text-[#88929E]">
+                                {slot.name[lang]}
+                            </div>
+                            <div className="grid grid-cols-7 divide-x divide-white/[0.06]">
+                                {days.map((day) => {
+                                    const meal = meals.find((m) => m.date === day.id && m.slot === slot.id);
+                                    const archetype = meal ? archetypesMap.get(meal.archetypeId) : undefined;
+
+                                    return (
+                                        <MealSlotCell
+                                            key={`${day.id}-${slot.id}`}
+                                            meal={meal}
+                                            archetype={archetype}
+                                            lang={lang}
+                                            onSelect={() => onSlotClick(day.id, slot.id)}
+                                            onRemove={(e) => onRemoveMeal(day.id, slot.id, e)}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+};
+</file>
+
+<file path="src/components/meals/MealsBrowser.tsx">
+'use client';
+
+import React, { useState, useMemo } from 'react';
+import {
+    X,
+    Search,
+    Plus,
+    Sparkles,
+    Check,
+    ChefHat,
+    ArrowRight,
+    Wine,
+    CakeSlice,
+    ArrowLeft
+} from 'lucide-react';
+import {
+    FoodArchetype,
+    CuisineOrigin,
+    CookingMethod,
+    PortionSize,
+    Language,
+    MealSlot
+} from '@/types/nutrition';
+import { COOKING_MODIFIERS } from '@/data/cookingModifiers';
+
+interface MealsBrowserProps {
+    archetypes: FoodArchetype[];
+    lang: Language;
+    initialDate: string;
+    initialSlot: MealSlot;
+    onClose: () => void;
+    onConfirmAdd: (entry: {
+        archetypeId: string;
+        date: string;
+        slot: MealSlot;
+        portion: PortionSize;
+        cookingMethod?: CookingMethod;
+        alcoholUnits: number;
+        hasDessert: boolean;
+    }) => void;
+}
+
+export const MealsBrowser: React.FC<MealsBrowserProps> = ({
+    archetypes,
+    lang,
+    initialDate,
+    initialSlot,
+    onClose,
+    onConfirmAdd,
+}) => {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedOrigin, setSelectedOrigin] = useState<CuisineOrigin | 'all'>('all');
+    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    const [selectedArchId, setSelectedArchId] = useState<string>(archetypes[0]?.id || '');
+    const [portion, setPortion] = useState<PortionSize>('standard');
+    const [alcoholUnits, setAlcoholUnits] = useState(0);
+    const [hasDessert, setHasDessert] = useState(false);
+    const [targetSlot, setTargetSlot] = useState<MealSlot>(initialSlot);
+
+    // Filtrado seguro con fallbacks
+    const filteredArchetypes = useMemo(() => {
+        return archetypes.filter((arch) => {
+            const name = arch.name?.[lang] || arch.name?.['en'] || '';
+            const desc = arch.description?.[lang] || arch.description?.['en'] || '';
+            const matchesSearch =
+                name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                desc.toLowerCase().includes(searchQuery.toLowerCase());
+
+            const archOrigin = arch.origin || 'global';
+            const matchesOrigin = selectedOrigin === 'all' || archOrigin === selectedOrigin;
+            const matchesCategory = selectedCategory === 'all' || arch.category === selectedCategory;
+            return matchesSearch && matchesOrigin && matchesCategory;
+        });
+    }, [archetypes, searchQuery, selectedOrigin, selectedCategory, lang]);
+
+    const selectedArch = useMemo(() => {
+        return archetypes.find((a) => a.id === selectedArchId) || archetypes[0];
+    }, [archetypes, selectedArchId]);
+
+    // Telemetría en tiempo real para la ficha inferior
+    const telemetryPreview = useMemo(() => {
+        if (!selectedArch) return null;
+        const pMultiplier = portion === 'light' ? 0.7 : portion === 'heavy' ? 1.35 : 1.0;
+        const defaultCooking = selectedArch.defaultCooking || 'grilled_pan';
+        const mod = COOKING_MODIFIERS[defaultCooking] || COOKING_MODIFIERS.raw;
+        const addedFatKcal = mod.fatDeltaGrams * 9;
+        const totalKcal = Math.round((selectedArch.nutrients?.kcal ?? 500) * pMultiplier + addedFatKcal + alcoholUnits * 120 + (hasDessert ? 320 : 0));
+        const sodium = Math.round((selectedArch.nutrients?.sodiumMg ?? 800) * pMultiplier);
+        const potassium = Math.round((selectedArch.nutrients?.potassiumMg ?? 600) * pMultiplier * mod.potassiumRetentionRatio);
+        const ratioNaK = potassium > 0 ? (sodium / potassium).toFixed(2) : '0';
+
+        return {
+            kcal: totalKcal,
+            protein: Math.round((selectedArch.nutrients?.proteinG ?? 30) * pMultiplier),
+            carbs: Math.round((selectedArch.nutrients?.carbsG ?? 50) * pMultiplier),
+            fat: Math.round((selectedArch.nutrients?.fatG ?? 15) * pMultiplier + mod.fatDeltaGrams),
+            fiber: Math.round((selectedArch.nutrients?.fiberG ?? 5) * pMultiplier),
+            sodium,
+            potassium,
+            ratioNaK,
+        };
+    }, [selectedArch, portion, alcoholUnits, hasDessert]);
+
+    return (
+        <div className="flex h-full w-full flex-col bg-[#0A0C0F] text-[#D8DEE5]">
+            {/* 1. Cabecera del Panel */}
+            <div className="flex shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#11141A]/90 px-6 py-4 backdrop-blur-md">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={onClose}
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.02] text-[#88929E] transition-all hover:border-[#4FE3C1] hover:text-white"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                    </button>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <ChefHat className="h-4 w-4 text-[#4FE3C1]" />
+                            <h2 className="font-mono text-sm font-bold uppercase tracking-widest text-white">
+                                {lang === 'es' ? 'Catálogo de Comidas' : 'Meal Archetypes'}
+                            </h2>
+                        </div>
+                        <p className="text-[11px] text-[#88929E]">
+                            {lang === 'es' ? 'Selecciona un plato para proyectar su telemetría' : 'Select a dish to project nutritional impact'}
+                        </p>
+                    </div>
+                </div>
+
+                <button
+                    onClick={onClose}
+                    className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 font-mono text-xs text-[#88929E] transition-all hover:border-white/[0.2] hover:text-white"
+                >
+                    <X className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">ESC</span>
+                </button>
+            </div>
+
+            {/* 2. Cuerpo Principal: Filtros + Parrilla */}
+            <div className="flex flex-1 min-h-0 flex-col overflow-hidden lg:flex-row">
+                {/* Barra Lateral de Filtros */}
+                <aside className="w-full shrink-0 border-b border-white/[0.08] bg-[#11141A]/40 p-5 backdrop-blur-sm lg:w-64 lg:border-b-0 lg:border-r space-y-6 overflow-y-auto">
+                    {/* Buscador */}
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#88929E]" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder={lang === 'es' ? 'Buscar plato...' : 'Search dish...'}
+                            className="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] py-2 pl-9 pr-3 text-xs text-white placeholder-[#88929E] transition-colors focus:border-[#4FE3C1] focus:outline-none"
+                        />
+                    </div>
+
+                    {/* Filtro: Origen */}
+                    <div className="space-y-2">
+                        <span className="font-mono text-[10px] uppercase tracking-wider text-[#88929E]">
+                            {lang === 'es' ? 'Origen Culinario' : 'Origin'}
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 lg:flex-col">
+                            {[
+                                { id: 'all', label: lang === 'es' ? 'Todos' : 'All', flag: '🌐' },
+                                { id: 'japanese', label: 'Japón / Asia', flag: '🇯🇵' },
+                                { id: 'mediterranean', label: 'Mediterráneo', flag: '🇪🇸' },
+                                { id: 'american', label: 'American Fast', flag: '🇺🇸' },
+                                { id: 'global', label: 'Global Fusión', flag: '🌍' },
+                            ].map((opt) => (
+                                <button
+                                    key={opt.id}
+                                    onClick={() => setSelectedOrigin(opt.id as CuisineOrigin | 'all')}
+                                    className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-left font-mono text-xs transition-all ${selectedOrigin === opt.id
+                                            ? 'border border-[#4FE3C1] bg-[#4FE3C1]/15 font-semibold text-white'
+                                            : 'border border-transparent text-[#88929E] hover:bg-white/[0.04] hover:text-[#D8DEE5]'
+                                        }`}
+                                >
+                                    <span>{opt.flag}</span>
+                                    <span>{opt.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Filtro: Tipo de Comida */}
+                    <div className="space-y-2">
+                        <span className="font-mono text-[10px] uppercase tracking-wider text-[#88929E]">
+                            {lang === 'es' ? 'Categoría' : 'Category'}
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 lg:flex-col">
+                            {[
+                                { id: 'all', label: lang === 'es' ? 'Todas' : 'All' },
+                                { id: 'home_cooked', label: lang === 'es' ? 'Casero / Limpio' : 'Home Cooked' },
+                                { id: 'retail_convenience', label: lang === 'es' ? 'Convenience / Retail' : 'Retail Grab & Go' },
+                                { id: 'restaurant_social', label: lang === 'es' ? 'Restaurante' : 'Restaurant' },
+                                { id: 'fast_food', label: lang === 'es' ? 'Fast Food' : 'Fast Food' },
+                            ].map((opt) => (
+                                <button
+                                    key={opt.id}
+                                    onClick={() => setSelectedCategory(opt.id)}
+                                    className={`rounded-lg px-3 py-1.5 text-left font-mono text-xs transition-all ${selectedCategory === opt.id
+                                            ? 'border border-[#3B82F6] bg-[#3B82F6]/15 font-semibold text-white'
+                                            : 'border border-transparent text-[#88929E] hover:bg-white/[0.04] hover:text-[#D8DEE5]'
+                                        }`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </aside>
+
+                {/* Parrilla de Platos */}
+                <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+                    <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+                        {filteredArchetypes.map((arch) => {
+                            const isSelected = arch.id === selectedArchId;
+                            const pG = arch.nutrients?.proteinG ?? 25;
+                            const cG = arch.nutrients?.carbsG ?? 40;
+                            const fG = arch.nutrients?.fatG ?? 15;
+                            const totalMacros = Math.max(1, pG + cG + fG);
+                            const proteinPct = Math.round((pG / totalMacros) * 100);
+                            const carbsPct = Math.round((cG / totalMacros) * 100);
+
+                            return (
+                                <div
+                                    key={arch.id}
+                                    onClick={() => setSelectedArchId(arch.id)}
+                                    className={`group relative flex cursor-pointer flex-col justify-between rounded-2xl border p-4.5 transition-all duration-200 ${isSelected
+                                            ? 'border-[#4FE3C1] bg-[#141820] shadow-[0_0_25px_rgba(79,227,193,0.18)] ring-1 ring-[#4FE3C1]'
+                                            : 'border-white/[0.06] bg-[#11141A]/80 hover:border-white/[0.2] hover:bg-[#141820]'
+                                        }`}
+                                >
+                                    <div>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="font-mono text-[9px] uppercase tracking-wider text-[#4FE3C1] bg-[#4FE3C1]/10 px-2 py-0.5 rounded-full border border-[#4FE3C1]/20">
+                                                {arch.origin || 'global'}
+                                            </span>
+                                            {isSelected && (
+                                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#4FE3C1] text-black">
+                                                    <Check className="h-3 w-3 stroke-[3]" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <h3 className="mt-2.5 text-sm font-semibold text-white group-hover:text-[#4FE3C1] transition-colors">
+                                            {arch.name?.[lang] || arch.name?.['en']}
+                                        </h3>
+                                        <p className="mt-1 line-clamp-2 text-xs text-[#88929E] leading-relaxed">
+                                            {arch.description?.[lang] || arch.description?.['en'] || 'Perfil nutricional calibrado'}
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-4 pt-3 border-t border-white/[0.06] space-y-2">
+                                        <div className="flex items-baseline justify-between font-mono text-xs">
+                                            <span className="text-white font-bold tabular-nums">
+                                                ~{arch.nutrients?.kcal ?? 500} <span className="text-[10px] font-normal text-[#88929E]">kcal</span>
+                                            </span>
+                                            <span className="text-[10px] text-[#88929E]">
+                                                {pG}g P · {cG}g C · {fG}g G
+                                            </span>
+                                        </div>
+
+                                        {/* Barra de proporción de macros */}
+                                        <div className="flex h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
+                                            <div style={{ width: `${proteinPct}%` }} className="bg-[#3B82F6]" />
+                                            <div style={{ width: `${carbsPct}%` }} className="bg-[#F59E0B]" />
+                                            <div style={{ width: `${100 - proteinPct - carbsPct}%` }} className="bg-[#FF6B6B]" />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Tarjeta: Añadir Nuevo Plato */}
+                        <div className="flex min-h-[160px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.12] bg-white/[0.01] p-6 text-center transition-colors hover:border-[#4FE3C1]/50 hover:bg-white/[0.02] cursor-pointer">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.04] text-[#88929E]">
+                                <Plus className="h-4 w-4" />
+                            </div>
+                            <h4 className="mt-2.5 text-xs font-semibold text-white">
+                                {lang === 'es' ? 'Añadir Nuevo Plato' : 'Create Custom Dish'}
+                            </h4>
+                            <p className="mt-0.5 text-[10px] text-[#88929E]">
+                                {lang === 'es' ? 'Receta personalizada o scanner' : 'Custom recipe or barcode'}
+                            </p>
+                            <span className="mt-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#F59E0B]">
+                                Roadmap v1.1
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. Dock Inferior Fijo: Telemetría y Botón de Asignación */}
+            {telemetryPreview && selectedArch && (
+                <div className="shrink-0 border-t border-white/[0.12] bg-[#11141A] p-4.5 shadow-[0_-15px_40px_rgba(0,0,0,0.85)]">
+                    <div className="mx-auto max-w-7xl flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        {/* Información del plato y micronutrientes */}
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 text-[#4FE3C1]" />
+                                <span className="font-mono text-xs font-bold uppercase tracking-wider text-white">
+                                    {selectedArch.name?.[lang] || selectedArch.name?.['en']}
+                                </span>
+                                <span className="font-mono text-xs text-[#4FE3C1]">({telemetryPreview.kcal} kcal)</span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] text-[#88929E]">
+                                <span className="text-white font-medium">{telemetryPreview.protein}g Proteína</span>
+                                <span>·</span>
+                                <span>{telemetryPreview.carbs}g Carbs</span>
+                                <span>·</span>
+                                <span>{telemetryPreview.fat}g Grasas</span>
+                                <span>·</span>
+                                <span className={Number(telemetryPreview.ratioNaK) > 1.2 ? 'text-[#FF6B6B]' : 'text-[#4FE3C1]'}>
+                                    Ratio Na/K: {telemetryPreview.ratioNaK}
+                                </span>
+                                <span>·</span>
+                                <span>Potasio: {telemetryPreview.potassium} mg</span>
+                                <span>·</span>
+                                <span>Sodio: {telemetryPreview.sodium} mg</span>
+                            </div>
+                        </div>
+
+                        {/* Controles de porción y acción */}
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            {/* Selector de porción */}
+                            <div className="flex rounded-xl border border-white/[0.08] bg-white/[0.02] p-0.5">
+                                {(['light', 'standard', 'heavy'] as PortionSize[]).map((p) => (
+                                    <button
+                                        key={p}
+                                        onClick={() => setPortion(p)}
+                                        className={`rounded-lg px-2.5 py-1 font-mono text-[10px] uppercase transition-all ${portion === p
+                                                ? 'bg-[#4FE3C1] font-bold text-black shadow-sm'
+                                                : 'text-[#88929E] hover:text-white'
+                                            }`}
+                                    >
+                                        {p === 'light' ? '0.7x' : p === 'standard' ? '1.0x' : '1.35x'}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Extras: Alcohol y Postre */}
+                            <div className="flex gap-1">
+                                <button
+                                    onClick={() => setAlcoholUnits((u) => (u > 0 ? 0 : 1))}
+                                    className={`rounded-lg border px-2.5 py-1.5 text-xs transition-all ${alcoholUnits > 0
+                                            ? 'border-rose-500/40 bg-rose-500/15 text-[#FF6B6B]'
+                                            : 'border-white/[0.08] text-[#88929E]'
+                                        }`}
+                                >
+                                    <Wine className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    onClick={() => setHasDessert((d) => !d)}
+                                    className={`rounded-lg border px-2.5 py-1.5 text-xs transition-all ${hasDessert
+                                            ? 'border-amber-500/40 bg-amber-500/15 text-[#F59E0B]'
+                                            : 'border-white/[0.08] text-[#88929E]'
+                                        }`}
+                                >
+                                    <CakeSlice className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+
+                            {/* Selector de Slot */}
+                            <select
+                                value={targetSlot}
+                                onChange={(e) => setTargetSlot(e.target.value as MealSlot)}
+                                className="rounded-xl border border-white/[0.08] bg-[#141820] px-3 py-2 font-mono text-xs text-white focus:border-[#4FE3C1] focus:outline-none"
+                            >
+                                <option value="lunch">{lang === 'es' ? 'Comida' : 'Lunch'}</option>
+                                <option value="dinner">{lang === 'es' ? 'Cena' : 'Dinner'}</option>
+                            </select>
+
+                            {/* Botón de confirmación */}
+                            <button
+                                onClick={() =>
+                                    onConfirmAdd({
+                                        archetypeId: selectedArch.id,
+                                        date: initialDate,
+                                        slot: targetSlot,
+                                        portion,
+                                        alcoholUnits,
+                                        hasDessert,
+                                    })
+                                }
+                                className="flex items-center gap-2 rounded-xl bg-[#4FE3C1] px-5 py-2 font-mono text-xs font-bold uppercase tracking-wider text-black shadow-[0_0_20px_rgba(79,227,193,0.3)] transition-all hover:bg-[#45ccad]"
+                            >
+                                <span>{lang === 'es' ? 'Añadir a la Agenda' : 'Assign to Day'}</span>
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+</file>
+
+<file path="src/components/nutrition/QuickLogModal.tsx">
+'use client';
+
+import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, ChevronRight, Wine, CakeSlice } from 'lucide-react';
+import { FoodArchetype, PortionSize, Language, MealSlot } from '@/types/nutrition';
+
+interface QuickLogModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    date: string;
+    slot: MealSlot;
+    archetypes: FoodArchetype[];
+    selectedArchetypeId: string;
+    selectedPortion: PortionSize;
+    alcoholUnits: number;
+    hasDessert: boolean;
+    lang: Language;
+    onSelectArchetype: (id: string) => void;
+    onSelectPortion: (portion: PortionSize) => void;
+    onToggleAlcohol: () => void;
+    onToggleDessert: () => void;
+    onConfirm: () => void;
+}
+
+export const QuickLogModal: React.FC<QuickLogModalProps> = ({
+    isOpen,
+    onClose,
+    date,
+    slot,
+    archetypes,
+    selectedArchetypeId,
+    selectedPortion,
+    alcoholUnits,
+    hasDessert,
+    lang,
+    onSelectArchetype,
+    onSelectPortion,
+    onToggleAlcohol,
+    onToggleDessert,
+    onConfirm,
+}) => {
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+                    {/* Backdrop */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={onClose}
+                        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                    />
+
+                    {/* Modal Panel */}
+                    <motion.div
+                        initial={{ y: 24, opacity: 0, scale: 0.98 }}
+                        animate={{ y: 0, opacity: 1, scale: 1 }}
+                        exit={{ y: 24, opacity: 0, scale: 0.98 }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                        className="relative w-full max-w-lg rounded-t-2xl border border-white/[0.1] bg-[#12161B] p-6 text-white shadow-2xl sm:rounded-2xl space-y-5"
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+                            <div>
+                                <h3 className="text-base font-semibold text-white">
+                                    {lang === 'es' ? 'Registrar Comida' : 'Log Meal'}
+                                </h3>
+                                <p className="font-mono text-xs text-[#88929E]">
+                                    {date} · <span className="uppercase">{slot}</span>
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="rounded-lg p-1.5 text-[#88929E] hover:bg-white/[0.05] hover:text-white transition"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        {/* Click 2: Archetype Selection Grid */}
+                        <div className="space-y-2">
+                            <span className="font-mono text-[10px] uppercase tracking-wider text-[#88929E]">
+                                1. {lang === 'es' ? 'Elige el Arquetipo' : 'Select Archetype'}
+                            </span>
+                            <div className="grid max-h-52 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                                {archetypes.map((arch) => {
+                                    const isSelected = selectedArchetypeId === arch.id;
+                                    return (
+                                        <button
+                                            key={arch.id}
+                                            type="button"
+                                            onClick={() => onSelectArchetype(arch.id)}
+                                            className={`flex flex-col justify-between rounded-xl border p-3 text-left transition-all ${isSelected
+                                                    ? 'border-[#4FE3C1] bg-[#4FE3C1]/10 text-white shadow-[0_0_15px_rgba(79,227,193,0.15)]'
+                                                    : 'border-white/[0.06] bg-white/[0.02] text-[#D8DEE5] hover:border-white/[0.2] hover:bg-white/[0.04]'
+                                                }`}
+                                        >
+                                            <span className="text-xs font-medium leading-snug">{arch.name[lang]}</span>
+                                            <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-[#88929E]">
+                                                <span>{arch.nutrients.kcal} kcal</span>
+                                                <span>{arch.nutrients.proteinG}g P</span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Click 3: Portion Scale & Toggles */}
+                        <div className="space-y-4 border-t border-white/[0.06] pt-3">
+                            <div>
+                                <span className="mb-2 block font-mono text-[10px] uppercase tracking-wider text-[#88929E]">
+                                    2. {lang === 'es' ? 'Tamaño de Porción' : 'Portion Scale'}
+                                </span>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(['light', 'standard', 'heavy'] as PortionSize[]).map((size) => (
+                                        <button
+                                            key={size}
+                                            type="button"
+                                            onClick={() => onSelectPortion(size)}
+                                            className={`rounded-lg border py-2 font-mono text-xs uppercase tracking-wider transition-all ${selectedPortion === size
+                                                    ? 'border-[#4FE3C1] bg-[#4FE3C1] font-bold text-black'
+                                                    : 'border-white/[0.06] bg-white/[0.02] text-[#88929E] hover:border-white/[0.2]'
+                                                }`}
+                                        >
+                                            {size === 'light'
+                                                ? lang === 'es' ? 'Ligero' : 'Light'
+                                                : size === 'standard'
+                                                    ? lang === 'es' ? 'Normal' : 'Standard'
+                                                    : lang === 'es' ? 'Grande' : 'Heavy'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Extras Toggles */}
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={onToggleAlcohol}
+                                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg border py-2 text-xs font-medium transition-all ${alcoholUnits > 0
+                                            ? 'border-rose-500/40 bg-rose-500/10 text-[#FF6B6B]'
+                                            : 'border-white/[0.06] bg-white/[0.02] text-[#88929E] hover:border-white/[0.2]'
+                                        }`}
+                                >
+                                    <Wine className="h-3.5 w-3.5" />
+                                    {lang === 'es' ? '+ Alcohol' : '+ Drink'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onToggleDessert}
+                                    className={`flex flex-1 items-center justify-center gap-2 rounded-lg border py-2 text-xs font-medium transition-all ${hasDessert
+                                            ? 'border-amber-500/40 bg-amber-500/10 text-[#F59E0B]'
+                                            : 'border-white/[0.06] bg-white/[0.02] text-[#88929E] hover:border-white/[0.2]'
+                                        }`}
+                                >
+                                    <CakeSlice className="h-3.5 w-3.5" />
+                                    {lang === 'es' ? '+ Postre' : '+ Dessert'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Final Action Button */}
+                        <motion.button
+                            whileTap={{ scale: 0.98 }}
+                            onClick={onConfirm}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#4FE3C1] py-3 text-xs font-bold uppercase tracking-wider text-black transition-all hover:bg-[#45ccad] shadow-[0_4px_20px_rgba(79,227,193,0.25)]"
+                        >
+                            <span>{lang === 'es' ? 'Confirmar en 1 Clic' : 'Confirm Entry'}</span>
+                            <ChevronRight className="h-4 w-4" />
+                        </motion.button>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
+    );
+};
+</file>
+
+<file path="src/components/telemetry/MicronutrientDrawer.tsx">
+'use client';
+
+import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { TelemetrySummary } from '@/hooks/useNutritionTelemetry';
+import { Language } from '@/types/nutrition';
+
+interface MicronutrientDrawerProps {
+    isOpen: boolean;
+    telemetry: TelemetrySummary;
+    lang: Language;
+}
+
+export const MicronutrientDrawer: React.FC<MicronutrientDrawerProps> = ({
+    isOpen,
+    telemetry,
+    lang,
+}) => {
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <motion.section
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="overflow-hidden rounded-2xl border border-[#4FE3C1]/20 bg-[#12161B]/90 p-6 backdrop-blur-md"
+                >
+                    <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
+                        <div>
+                            <h3 className="font-mono text-xs uppercase tracking-widest text-[#4FE3C1]">
+                                {lang === 'es' ? 'Laboratorio de Micronutrientes' : 'Micronutrient Laboratory'}
+                            </h3>
+                            <p className="text-xs text-[#88929E]">
+                                {lang === 'es'
+                                    ? 'Valores medios diarios extrapolados de los vectores de referencia'
+                                    : 'Extrapolated daily averages from reference composite vectors'}
+                            </p>
+                        </div>
+                        <span className="rounded-full border border-white/[0.1] bg-white/[0.03] px-2.5 py-0.5 font-mono text-[10px] text-[#D8DEE5]">
+                            7-Day Rolling
+                        </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                            <span className="font-mono text-[10px] uppercase text-[#88929E]">Potassium (K)</span>
+                            <div className="mt-1 font-mono text-lg font-bold text-white tabular-nums">
+                                {telemetry.dailyAvgPotassium} mg
+                            </div>
+                            <span className="text-[10px] text-[#88929E]">Target: &gt;3,500</span>
+                        </div>
+
+                        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                            <span className="font-mono text-[10px] uppercase text-[#88929E]">Sodium (Na)</span>
+                            <div className="mt-1 font-mono text-lg font-bold text-white tabular-nums">
+                                {telemetry.dailyAvgSodium} mg
+                            </div>
+                            <span className="text-[10px] text-[#88929E]">Limit: &lt;2,300</span>
+                        </div>
+
+                        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                            <span className="font-mono text-[10px] uppercase text-[#88929E]">Magnesium</span>
+                            <div className="mt-1 font-mono text-lg font-bold text-white tabular-nums">
+                                {telemetry.dailyAvgMagnesium} mg
+                            </div>
+                            <span className="text-[10px] text-[#88929E]">Target: &gt;350</span>
+                        </div>
+
+                        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                            <span className="font-mono text-[10px] uppercase text-[#88929E]">Vitamin C</span>
+                            <div className="mt-1 font-mono text-lg font-bold text-white tabular-nums">
+                                {telemetry.dailyAvgVitaminC} mg
+                            </div>
+                            <span className="text-[10px] text-[#88929E]">Target: &gt;80</span>
+                        </div>
+
+                        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                            <span className="font-mono text-[10px] uppercase text-[#88929E]">Dietary Fiber</span>
+                            <div className="mt-1 font-mono text-lg font-bold text-white tabular-nums">
+                                {telemetry.dailyAvgFiber} g
+                            </div>
+                            <span className="text-[10px] text-[#88929E]">Target: &gt;30</span>
+                        </div>
+
+                        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                            <span className="font-mono text-[10px] uppercase text-[#88929E]">Vitamin B12</span>
+                            <div className="mt-1 font-mono text-lg font-bold text-white tabular-nums">
+                                {telemetry.dailyAvgB12} µg
+                            </div>
+                            <span className="text-[10px] text-[#88929E]">Target: &gt;2.4</span>
+                        </div>
+                    </div>
+                </motion.section>
+            )}
+        </AnimatePresence>
+    );
+};
+</file>
+
+<file path="src/components/telemetry/TelemetryBar.tsx">
+'use client';
+
+import React from 'react';
+import { Flame, Leaf, Activity, CheckCircle2 } from 'lucide-react';
+import { TelemetryDial } from './TelemetryDial';
+import { TelemetrySummary } from '@/hooks/useNutritionTelemetry';
+import { Language } from '@/types/nutrition';
+
+interface TelemetryBarProps {
+    telemetry: TelemetrySummary;
+    lang: Language;
+}
+
+export const TelemetryBar: React.FC<TelemetryBarProps> = ({ telemetry, lang }) => {
+    const isSurplus = telemetry.caloricDelta > 200;
+    const isHighSodium = telemetry.ratioNaK > 1.2;
+
+    return (
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* 1. Caloric Balance */}
+            <TelemetryDial
+                label={lang === 'es' ? 'Balance Energético' : 'Caloric Balance'}
+                value={telemetry.caloricDelta > 0 ? `+${telemetry.caloricDelta}` : telemetry.caloricDelta}
+                unit="kcal"
+                subtext={
+                    isSurplus
+                        ? lang === 'es' ? 'Superávit semanal' : 'Weekly surplus'
+                        : lang === 'es' ? 'Zona neutra / déficit' : 'Equilibrium zone'
+                }
+                progressPct={50 + telemetry.caloricDelta / 30}
+                accentColor={isSurplus ? '#FF6B6B' : '#4FE3C1'}
+                icon={Flame}
+            />
+
+            {/* 2. Fresh & Fiber Score */}
+            <TelemetryDial
+                label={lang === 'es' ? 'Índice de Frescos' : 'Fresh & Fiber'}
+                value={`${telemetry.freshIndexPct}%`}
+                subtext={
+                    telemetry.freshIndexPct >= 60
+                        ? lang === 'es' ? 'Densidad vegetal óptima' : 'Optimal plant density'
+                        : lang === 'es' ? 'Déficit de verdura/fibra' : 'Vegetable deficit'
+                }
+                progressPct={telemetry.freshIndexPct}
+                accentColor={telemetry.freshIndexPct < 45 ? '#F59E0B' : '#4FE3C1'}
+                icon={Leaf}
+            />
+
+            {/* 3. Sodium / Potassium Ratio */}
+            <TelemetryDial
+                label={lang === 'es' ? 'Ratio Sodio / Potasio' : 'Na / K Ratio'}
+                value={telemetry.ratioNaK}
+                subtext={
+                    isHighSodium
+                        ? lang === 'es' ? 'Retención hídrica probable' : 'Elevated vascular stress'
+                        : lang === 'es' ? 'Balance celular óptimo (<1.0)' : 'Ideal fluid balance'
+                }
+                progressPct={telemetry.ratioNaK * 50}
+                accentColor={isHighSodium ? '#FF6B6B' : '#3B82F6'}
+                icon={Activity}
+                badge={isHighSodium ? (lang === 'es' ? 'Exceso' : 'High') : undefined}
+            />
+
+            {/* 4. Daily Protein */}
+            <TelemetryDial
+                label={lang === 'es' ? 'Proteína Diaria' : 'Daily Protein'}
+                value={telemetry.avgDailyProtein}
+                unit="g / day"
+                subtext={
+                    telemetry.avgDailyProtein >= 130
+                        ? lang === 'es' ? 'Target proteico cubierto' : 'Target reached'
+                        : lang === 'es' ? 'Por debajo del objetivo' : 'Below target'
+                }
+                progressPct={(telemetry.avgDailyProtein / 140) * 100}
+                accentColor="#3B82F6"
+                icon={CheckCircle2}
+            />
+        </section>
+    );
+};
+</file>
+
+<file path="src/components/telemetry/TelemetryDial.tsx">
+'use client';
+
+import React from 'react';
+import { motion } from 'framer-motion';
+import { LucideIcon } from 'lucide-react';
+
+interface TelemetryDialProps {
+  label: string;
+  value: string | number;
+  unit?: string;
+  subtext: string;
+  progressPct: number;
+  accentColor: string; // e.g. '#4FE3C1' or '#FF6B6B'
+  icon: LucideIcon;
+  badge?: string;
+}
+
+export const TelemetryDial: React.FC<TelemetryDialProps> = ({
+  label,
+  value,
+  unit,
+  subtext,
+  progressPct,
+  accentColor,
+  icon: Icon,
+  badge,
+}) => {
+  return (
+    <motion.div
+      whileHover={{ y: -2, transition: { duration: 0.2 } }}
+      className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-[#12161B]/90 p-4.5 backdrop-blur-md transition-all duration-300 hover:border-white/[0.2] hover:shadow-[0_8px_30px_rgb(0,0,0,0.4)]"
+    >
+      {/* Subtle ambient gradient spotlight on hover */}
+      <div
+        className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-20"
+        style={{ backgroundColor: accentColor }}
+      />
+
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-[#88929E]">
+          {label}
+        </span>
+        <Icon className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" style={{ color: accentColor }} />
+      </div>
+
+      <div className="my-2.5 flex items-baseline gap-2">
+        <span className="font-mono text-2xl font-semibold tracking-tight text-white tabular-nums">
+          {value}
+        </span>
+        {unit && <span className="font-mono text-xs text-[#88929E]">{unit}</span>}
+        {badge && (
+          <span className="ml-auto rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#FF6B6B]">
+            {badge}
+          </span>
+        )}
+      </div>
+
+      <p className="line-clamp-1 text-xs text-[#88929E]">{subtext}</p>
+
+      {/* Progress Track */}
+      <div className="mt-3.5 h-1 w-full overflow-hidden rounded-full bg-white/[0.06]">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="h-full rounded-full"
+          style={{ backgroundColor: accentColor }}
+        />
+      </div>
+    </motion.div>
+  );
+};
+</file>
+
+<file path="src/data/archetypes.ts">
+import { FoodArchetype } from '@/types/nutrition';
+
+export const INITIAL_ARCHETYPES: FoodArchetype[] = [
+    {
+        id: 'arch_japan_tonkotsu_ramen',
+        code: 'japan_tonkotsu_ramen',
+        origin: 'japanese',
+        category: 'home_cooked',
+        name: {
+            es: 'Ramen Casero / Chashu & Huevo Mayak',
+            en: 'Slow-Cooked Pork Tonkotsu Ramen',
+        },
+        description: {
+            es: 'Caldo denso de cocción lenta, fideos, panceta, algas y huevo marinado',
+            en: 'Rich slow-simmered broth, noodles, pork belly, nori & marinated egg',
+        },
+        basePortionGrams: 550,
+        defaultCooking: 'slow_cook_stew',
+        nutrients: {
+            kcal: 740,
+            proteinG: 38,
+            carbsG: 78,
+            fatG: 32,
+            fiberG: 5.2,
+            sodiumMg: 1920,
+            potassiumMg: 840,
+            magnesiumMg: 68,
+            ironMg: 4.8,
+            calciumMg: 95,
+            vitaminCMg: 6,
+            vitaminB12Ug: 2.8,
+            freshVegetableScore: 1,
+        },
+    },
+    {
+        id: 'arch_japan_salmon_poke',
+        code: 'japan_salmon_poke',
+        origin: 'japanese',
+        category: 'retail_convenience',
+        name: {
+            es: 'Poke Bowl de Salmón y Edamame',
+            en: 'Salmon & Edamame Poke Bowl',
+        },
+        description: {
+            es: 'Arroz de sushi, salmón fresco crudo, edamame, aguacate y wakame',
+            en: 'Sushi rice, fresh raw salmon, edamame beans, avocado & wakame',
+        },
+        basePortionGrams: 420,
+        defaultCooking: 'raw',
+        nutrients: {
+            kcal: 610,
+            proteinG: 34,
+            carbsG: 72,
+            fatG: 21,
+            fiberG: 6.8,
+            sodiumMg: 890,
+            potassiumMg: 780,
+            magnesiumMg: 74,
+            ironMg: 3.2,
+            calciumMg: 70,
+            vitaminCMg: 12,
+            vitaminB12Ug: 4.5,
+            freshVegetableScore: 2,
+        },
+    },
+    {
+        id: 'arch_med_stew_legumes',
+        code: 'med_stew_legumes',
+        origin: 'mediterranean',
+        category: 'home_cooked',
+        name: {
+            es: 'Guiso Casero de Lentejas y Verduras',
+            en: 'Traditional Lentil & Veggie Stew',
+        },
+        description: {
+            es: 'Lentejas pardinas a fuego lento con pimentón, zanahoria y AOVE',
+            en: 'Slow-simmered lentils with smoked paprika, carrots & olive oil',
+        },
+        basePortionGrams: 400,
+        defaultCooking: 'slow_cook_stew',
+        nutrients: {
+            kcal: 620,
+            proteinG: 26,
+            carbsG: 75,
+            fatG: 16,
+            fiberG: 14.0,
+            sodiumMg: 520,
+            potassiumMg: 1120,
+            magnesiumMg: 95,
+            ironMg: 6.0,
+            calciumMg: 130,
+            vitaminCMg: 14,
+            vitaminB12Ug: 0.0,
+            freshVegetableScore: 2,
+        },
+    },
+    {
+        id: 'arch_med_retail_salad',
+        code: 'med_retail_salad',
+        origin: 'mediterranean',
+        category: 'retail_convenience',
+        name: {
+            es: 'Ensalada Mercadona + Tiras Pollo + AOVE',
+            en: 'Supermarket Mixed Salad + Roast Chicken',
+        },
+        description: {
+            es: 'Bowl de hojas tiernas, tomate cherry, tiras de pechuga y AOVE',
+            en: 'Fresh leafy greens bowl, cherry tomatoes, pulled chicken & EVOO',
+        },
+        basePortionGrams: 320,
+        defaultCooking: 'raw',
+        nutrients: {
+            kcal: 520,
+            proteinG: 38,
+            carbsG: 14,
+            fatG: 28,
+            fiberG: 7.5,
+            sodiumMg: 680,
+            potassiumMg: 920,
+            magnesiumMg: 65,
+            ironMg: 2.9,
+            calciumMg: 95,
+            vitaminCMg: 35,
+            vitaminB12Ug: 0.8,
+            freshVegetableScore: 3,
+        },
+    },
+    {
+        id: 'arch_med_grilled_clean',
+        code: 'med_grilled_clean',
+        origin: 'mediterranean',
+        category: 'home_cooked',
+        name: {
+            es: 'Proteína Plancha + Arroz Basmati + Salteado',
+            en: 'Grilled Clean Protein + Rice + Greens',
+        },
+        description: {
+            es: 'Pechuga o pescado blanco a la plancha, arroz vapor y calabacín',
+            en: 'Pan-seared white fish or poultry, steamed rice & zucchini',
+        },
+        basePortionGrams: 380,
+        defaultCooking: 'grilled_pan',
+        nutrients: {
+            kcal: 560,
+            proteinG: 42,
+            carbsG: 58,
+            fatG: 14,
+            fiberG: 6.5,
+            sodiumMg: 410,
+            potassiumMg: 980,
+            magnesiumMg: 70,
+            ironMg: 3.2,
+            calciumMg: 65,
+            vitaminCMg: 28,
+            vitaminB12Ug: 1.5,
+            freshVegetableScore: 3,
+        },
+    },
+    {
+        id: 'arch_usa_fastfood_burger',
+        code: 'usa_fastfood_burger',
+        origin: 'american',
+        category: 'fast_food',
+        name: {
+            es: 'Menú Burger Doble + Patatas',
+            en: 'Double Burger Combo + French Fries',
+        },
+        description: {
+            es: 'Burger con queso cheddar, salsa barbacoa y patatas fritas',
+            en: 'Double beef patty, cheddar, brioche bun & crispy fries',
+        },
+        basePortionGrams: 380,
+        defaultCooking: 'fried_battered',
+        nutrients: {
+            kcal: 1150,
+            proteinG: 34,
+            carbsG: 110,
+            fatG: 52,
+            fiberG: 4.5,
+            sodiumMg: 1480,
+            potassiumMg: 620,
+            magnesiumMg: 45,
+            ironMg: 3.8,
+            calciumMg: 120,
+            vitaminCMg: 4,
+            vitaminB12Ug: 2.1,
+            freshVegetableScore: 0,
+        },
+    },
+    {
+        id: 'arch_med_restaurant_menu',
+        code: 'med_restaurant_menu',
+        origin: 'mediterranean',
+        category: 'restaurant_social',
+        name: {
+            es: 'Menú del Día (Pasta + Ternera/Patatas)',
+            en: 'Daily Business Menu (Pasta + Beef)',
+        },
+        description: {
+            es: 'Plato tradicional de restaurante con dos tiempos, pan y café',
+            en: 'Two-course restaurant plate with olive oil dressing and potatoes',
+        },
+        basePortionGrams: 480,
+        defaultCooking: 'grilled_pan',
+        nutrients: {
+            kcal: 950,
+            proteinG: 35,
+            carbsG: 105,
+            fatG: 38,
+            fiberG: 5.0,
+            sodiumMg: 1350,
+            potassiumMg: 680,
+            magnesiumMg: 55,
+            ironMg: 4.1,
+            calciumMg: 85,
+            vitaminCMg: 8,
+            vitaminB12Ug: 2.8,
+            freshVegetableScore: 1,
+        },
+    },
+    {
+        id: 'arch_global_pizza',
+        code: 'global_pizza',
+        origin: 'global',
+        category: 'fast_food',
+        name: {
+            es: 'Pizza Artesanal / Restaurante',
+            en: 'Stone-Baked Commercial Pizza',
+        },
+        description: {
+            es: 'Masa fermentada, mozzarella, tomate y embutido curado',
+            en: 'Fermented crust, mozzarella fior di latte and cured topping',
+        },
+        basePortionGrams: 400,
+        defaultCooking: 'roasted_baked',
+        nutrients: {
+            kcal: 1050,
+            proteinG: 28,
+            carbsG: 125,
+            fatG: 42,
+            fiberG: 4.0,
+            sodiumMg: 1650,
+            potassiumMg: 390,
+            magnesiumMg: 38,
+            ironMg: 2.5,
+            calciumMg: 280,
+            vitaminCMg: 2,
+            vitaminB12Ug: 1.2,
+            freshVegetableScore: 0,
+        },
+    },
+];
+</file>
+
+<file path="src/data/cookingModifiers.ts">
+import { CookingMethod } from '@/types/nutrition';
+
+export interface CookingModifier {
+    fatDeltaGrams: number;
+    potassiumRetentionRatio: number;
+    vitaminCRetentionRatio: number;
+    freshScorePenalty: number;
+}
+
+export const COOKING_MODIFIERS: Record<CookingMethod, CookingModifier> = {
+    raw: {
+        fatDeltaGrams: 0,
+        potassiumRetentionRatio: 1.0,
+        vitaminCRetentionRatio: 1.0,
+        freshScorePenalty: 0,
+    },
+    steam_microwave: {
+        fatDeltaGrams: 0,
+        potassiumRetentionRatio: 0.95,
+        vitaminCRetentionRatio: 0.85,
+        freshScorePenalty: 0,
+    },
+    grilled_pan: {
+        fatDeltaGrams: 6,
+        potassiumRetentionRatio: 0.9,
+        vitaminCRetentionRatio: 0.7,
+        freshScorePenalty: 0,
+    },
+    roasted_baked: {
+        fatDeltaGrams: 8,
+        potassiumRetentionRatio: 0.85,
+        vitaminCRetentionRatio: 0.55,
+        freshScorePenalty: 1,
+    },
+    slow_cook_stew: {
+        // El caldo se retiene: máxima conservación de potasio y minerales
+        fatDeltaGrams: 5,
+        potassiumRetentionRatio: 0.98,
+        vitaminCRetentionRatio: 0.45,
+        freshScorePenalty: 0,
+    },
+    boiled_drained: {
+        // El agua se tira: lixiviación severa de minerales hidrosolubles
+        fatDeltaGrams: 0,
+        potassiumRetentionRatio: 0.55,
+        vitaminCRetentionRatio: 0.4,
+        freshScorePenalty: 1,
+    },
+    fried_battered: {
+        // Alta absorción de aceite y degradación de frescura
+        fatDeltaGrams: 16,
+        potassiumRetentionRatio: 0.7,
+        vitaminCRetentionRatio: 0.3,
+        freshScorePenalty: 2,
+    },
+};
+</file>
+
+<file path="src/hooks/useNutritionTelemetry.ts">
+'use client';
+
+import { useMemo } from 'react';
+import { MealEntry, FoodArchetype, PortionSize } from '@/types/nutrition';
+import { COOKING_MODIFIERS } from '@/data/cookingModifiers';
+
+export interface TelemetrySummary {
+    totalKcal: number;
+    caloricDelta: number;
+    avgDailyProtein: number;
+    ratioNaK: number;
+    freshIndexPct: number;
+    dailyAvgSodium: number;
+    dailyAvgPotassium: number;
+    dailyAvgMagnesium: number;
+    dailyAvgIron: number;
+    dailyAvgCalcium: number;
+    dailyAvgVitaminC: number;
+    dailyAvgB12: number;
+    dailyAvgFiber: number;
+}
+
+const PORTION_SCALES: Record<PortionSize, number> = {
+    light: 0.7,
+    standard: 1.0,
+    heavy: 1.35,
+};
+
+export function useNutritionTelemetry(
+    meals: MealEntry[],
+    archetypesMap: Map<string, FoodArchetype>
+): TelemetrySummary {
+    return useMemo(() => {
+        let totalKcal = 0;
+        let totalProtein = 0;
+        let totalSodium = 0;
+        let totalPotassium = 0;
+        let totalMagnesium = 0;
+        let totalIron = 0;
+        let totalCalcium = 0;
+        let totalVitaminC = 0;
+        let totalB12 = 0;
+        let totalFiber = 0;
+        let freshPointsSum = 0;
+        const mealCount = meals.length;
+
+        meals.forEach((meal) => {
+            const arch = archetypesMap.get(meal.archetypeId);
+            if (!arch) return;
+
+            const scale = PORTION_SCALES[meal.portion];
+            const cookingMethod = meal.cookingMethod || arch.defaultCooking;
+            const mod = COOKING_MODIFIERS[cookingMethod] || COOKING_MODIFIERS.raw;
+
+            const fatKcalAddition = mod.fatDeltaGrams * 9;
+            const alcoholKcal = meal.alcoholUnits * 120;
+            const dessertKcal = meal.hasDessert ? 320 : 0;
+
+            totalKcal += arch.nutrients.kcal * scale + fatKcalAddition + alcoholKcal + dessertKcal;
+            totalProtein += arch.nutrients.proteinG * scale;
+            totalSodium += arch.nutrients.sodiumMg * scale;
+            totalPotassium += arch.nutrients.potassiumMg * scale * mod.potassiumRetentionRatio;
+            totalMagnesium += arch.nutrients.magnesiumMg * scale * mod.potassiumRetentionRatio;
+            totalIron += arch.nutrients.ironMg * scale;
+            totalCalcium += arch.nutrients.calciumMg * scale;
+            totalVitaminC += arch.nutrients.vitaminCMg * scale * mod.vitaminCRetentionRatio;
+            totalB12 += arch.nutrients.vitaminB12Ug * scale;
+            totalFiber += arch.nutrients.fiberG * scale;
+
+            const adjustedFreshScore = Math.max(0, arch.nutrients.freshVegetableScore - mod.freshScorePenalty);
+            freshPointsSum += adjustedFreshScore;
+        });
+
+        const baselineMaintenanceWeekly = 2200 * 7;
+        const expectedElapsedKcal = baselineMaintenanceWeekly * (mealCount / 14);
+        const caloricDelta = Math.round(totalKcal - expectedElapsedKcal);
+
+        return {
+            totalKcal: Math.round(totalKcal),
+            caloricDelta,
+            avgDailyProtein: mealCount > 0 ? Math.round(totalProtein / 7) : 0,
+            ratioNaK: totalPotassium > 0 ? Number((totalSodium / totalPotassium).toFixed(2)) : 0,
+            freshIndexPct: mealCount > 0 ? Math.round((freshPointsSum / (mealCount * 3)) * 100) : 0,
+            dailyAvgSodium: Math.round(totalSodium / 7),
+            dailyAvgPotassium: Math.round(totalPotassium / 7),
+            dailyAvgMagnesium: Math.round(totalMagnesium / 7),
+            dailyAvgIron: Math.round(totalIron / 7),
+            dailyAvgCalcium: Math.round(totalCalcium / 7),
+            dailyAvgVitaminC: Math.round(totalVitaminC / 7),
+            dailyAvgB12: Number((totalB12 / 7).toFixed(1)),
+            dailyAvgFiber: Math.round(totalFiber / 7),
+        };
+    }, [meals, archetypesMap]);
+}
+</file>
+
+<file path="src/types/nutrition.ts">
+export type Language = 'es' | 'en';
+
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+export type PortionSize = 'light' | 'standard' | 'heavy';
+
+export type CuisineOrigin = 'mediterranean' | 'japanese' | 'american' | 'mexican' | 'nordic' | 'global';
+
+export type CookingMethod =
+    | 'raw'
+    | 'steam_microwave'
+    | 'grilled_pan'
+    | 'roasted_baked'
+    | 'slow_cook_stew'
+    | 'boiled_drained'
+    | 'fried_battered';
+
+export interface NutritionalVector {
+    kcal: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+    fiberG: number;
+    sodiumMg: number;
+    potassiumMg: number;
+    magnesiumMg: number;
+    ironMg: number;
+    calciumMg: number;
+    vitaminCMg: number;
+    vitaminB12Ug: number;
+    freshVegetableScore: 0 | 1 | 2 | 3;
+}
+
+export interface FoodArchetype {
+    id: string;
+    code: string;
+    origin: CuisineOrigin;
+    category: 'fast_food' | 'retail_convenience' | 'restaurant_social' | 'home_cooked';
+    name: Record<Language, string>;
+    description?: Record<Language, string>;
+    basePortionGrams: number;
+    defaultCooking: CookingMethod;
+    nutrients: NutritionalVector;
+}
+
+export interface MealEntry {
+    id: string;
+    date: string;
+    slot: MealSlot;
+    archetypeId: string;
+    portion: PortionSize;
+    cookingMethod?: CookingMethod;
+    alcoholUnits: number;
+    hasDessert: boolean;
+    notes?: string;
+}
+</file>
+
+<file path="dirlist.txt">
+
+</file>
+
+<file path="public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
+
+<file path="src/app/globals.css">
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --obsidian: #030406;
+  --graphite: #0A0C10;
+  --slate: #12151A;
+
+  --text-pure: #FFFFFF;
+  --text-fog: #A0ABC0;
+  --text-muted: #525C6A;
+
+  --cyan: #4FE3C1;
+  --blue: #3B82F6;
+  --amber: #F59E0B;
+  --coral: #FF4B4B;
+}
+
+body {
+  background-color: var(--obsidian);
+  color: var(--text-fog);
+  /* Tipografía técnica y suavizada */
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  /* Todo el scroll se maneja internamente */
+}
+
+/* Patrón instrumental de calibración en el fondo */
+.instrument-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 20%, transparent 80%);
+}
+
+/* Scrollbars invisibles pero funcionales */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</file>
+
+<file path="src/app/layout.tsx">
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col">{children}</body>
+    </html>
+  );
+}
+</file>
+
+<file path="src/app/page.tsx">
+'use client';
+
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  CalendarDays,
+  Flame,
+  Dumbbell,
+  Plus,
+  X,
+  ChevronRight,
+  Filter
+} from 'lucide-react';
+
+// --- TIPOGRAFÍAS RECOMENDADAS ---
+// font-serif: 'Ogg', 'PP Editorial New' o 'Playfair Display'
+// font-sans: 'PP Neue Montreal', 'Inter'
+// font-mono: 'Geist Mono', 'JetBrains Mono'
+
+type ViewState = 'calendar' | 'meals' | 'sports';
+
+// Datos de prueba ampliados para las nuevas vistas
+const DAYS_DATA = [
+  { id: 'd1', day: 'MON', date: '14', strain: 72, focus: 'High Pull', hasMeal: true },
+  { id: 'd2', day: 'TUE', date: '15', strain: 40, focus: 'Antagonist', hasMeal: true },
+  { id: 'd3', day: 'WED', date: '16', strain: 35, focus: 'Aerobic Base', hasMeal: false },
+  { id: 'd4', day: 'THU', date: '17', strain: 68, focus: 'Posterior', hasMeal: false },
+  { id: 'd5', day: 'FRI', date: '18', strain: 95, focus: 'Peak Demand', hasMeal: true, isToday: true },
+  { id: 'd6', day: 'SAT', date: '19', strain: 88, focus: 'Outdoor Rock', hasMeal: false },
+  { id: 'd7', day: 'SUN', date: '20', strain: 20, focus: 'Restoration', hasMeal: false },
+];
+
+const MEALS_DB = [
+  { id: 'm1', name: 'Tonkotsu Ramen', type: 'Slow Cooked', kcal: 850, tags: ['High Na', 'Liquid'] },
+  { id: 'm2', name: 'Grilled Salmon Bowl', type: 'Raw / Sear', kcal: 620, tags: ['Omega 3', 'Fresh'] },
+  { id: 'm3', name: 'Lentil Stew', type: 'Slow Cooked', kcal: 540, tags: ['Plant Based', 'Iron'] },
+  { id: 'm4', name: 'Smashed Burger', type: 'Fast / Grill', kcal: 920, tags: ['Heavy', 'Cheat'] },
+];
+
+const SPORTS_DB = [
+  { id: 's1', name: 'Bouldering', category: 'Climb', impact: 'High', energy: 'Anaerobic' },
+  { id: 's2', name: 'Wingfoil', category: 'Wind', impact: 'Medium', energy: 'Hybrid' },
+  { id: 's3', name: 'Zone 2 Run', category: 'Aero', impact: 'High', energy: 'Aerobic' },
+  { id: 's4', name: 'Mobility Flow', category: 'Rest', impact: 'Low', energy: 'Recovery' },
+];
+
+const customEase = [0.16, 1, 0.3, 1];
+
+export default function AwwwardsNutritionApp() {
+  const [activeView, setActiveView] = useState<ViewState>('calendar');
+  const [expandedDayId, setExpandedDayId] = useState<string | null>(null);
+  const [isQuickLogOpen, setIsQuickLogOpen] = useState(false);
+  const [activeMealFilter, setActiveMealFilter] = useState('All');
+
+  // --- SUBCOMPONENTES DE LAS VISTAS ---
+
+  const CalendarView = () => (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="w-full h-full pt-32 pb-24 px-8 md:px-24 flex flex-col justify-center"
+    >
+      <div className="mb-12">
+        <h1 className="font-serif text-6xl md:text-8xl font-light tracking-tighter text-white leading-[0.9]">
+          September <br /><span className="text-[#4FE3C1] italic">Timeline.</span>
+        </h1>
+        <p className="font-mono text-xs uppercase tracking-[0.3em] text-[#555] mt-6">
+          Infinite Horizon · Drag to explore
+        </p>
+      </div>
+
+      {/* Carrusel Horizontal Físico (Tarjetas con Profundidad) */}
+      <div className="flex gap-6 overflow-x-auto pb-12 pt-4 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full items-center">
+        {DAYS_DATA.map((day) => (
+          <motion.div
+            layoutId={`day-card-${day.id}`}
+            key={day.id}
+            onClick={() => setExpandedDayId(day.id)}
+            className={`relative min-w-[280px] h-[400px] snap-center cursor-pointer group flex flex-col justify-between p-8 rounded-3xl border transition-colors duration-500 overflow-hidden
+              ${day.isToday
+                ? 'bg-[#111] border-[#4FE3C1]/30 hover:border-[#4FE3C1]'
+                : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04] hover:border-white/[0.2]'
+              }`}
+          >
+            {/* Efecto de luz interior */}
+            <div className="absolute inset-0 bg-gradient-to-b from-white/[0.05] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+
+            <div>
+              <motion.span layoutId={`day-name-${day.id}`} className="font-mono text-[10px] uppercase tracking-[0.3em] text-[#666] group-hover:text-white transition-colors">
+                {day.day}
+              </motion.span>
+              <motion.h2 layoutId={`day-date-${day.id}`} className="font-serif text-7xl font-light text-white tracking-tighter mt-2">
+                {day.date}
+              </motion.h2>
+            </div>
+
+            <div className="relative z-10">
+              <div className="h-[1px] w-full bg-white/10 mb-4 group-hover:w-full transition-all duration-700" />
+              <p className="font-sans text-sm text-[#ccc] mb-2">{day.focus}</p>
+              <div className="flex items-center gap-4 font-mono text-[9px] uppercase tracking-widest text-[#555]">
+                <span>Load {day.strain}%</span>
+                {day.hasMeal && <span className="text-[#F59E0B] flex items-center gap-1"><Flame size={10} /> Fueled</span>}
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+
+  const MealsView = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -40 }}
+      transition={{ duration: 0.8, ease: customEase }}
+      className="w-full h-full pt-32 pb-24 px-8 md:px-24"
+    >
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-8">
+        <div>
+          <h1 className="font-serif text-6xl md:text-8xl font-light tracking-tighter text-white">
+            Nutrition <span className="text-[#F59E0B] italic">Lab.</span>
+          </h1>
+          <p className="font-mono text-xs uppercase tracking-[0.3em] text-[#555] mt-6">
+            Archetype Database
+          </p>
+        </div>
+
+        {/* Filtros Estilo Awwwards */}
+        <div className="flex gap-2">
+          {['All', 'Raw / Sear', 'Slow Cooked', 'Fast / Grill'].map(filter => (
+            <button
+              key={filter}
+              onClick={() => setActiveMealFilter(filter)}
+              className={`px-4 py-2 rounded-full font-mono text-[10px] uppercase tracking-wider border transition-all duration-300
+                ${activeMealFilter === filter ? 'bg-white text-black border-white' : 'bg-transparent text-[#666] border-[#333] hover:border-white hover:text-white'}`}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {MEALS_DB.filter(m => activeMealFilter === 'All' || m.type === activeMealFilter).map((meal, idx) => (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            key={meal.id}
+            className="group relative h-[300px] rounded-3xl bg-[#0a0a0a] border border-white/[0.05] p-8 flex flex-col justify-between overflow-hidden cursor-pointer hover:border-white/[0.2] transition-colors"
+          >
+            {/* Imagen de fondo simulada con gradiente */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[#111] to-[#050505] opacity-50 group-hover:scale-105 transition-transform duration-1000" />
+
+            <div className="relative z-10 flex justify-between items-start">
+              <span className="px-3 py-1 rounded-full border border-white/10 text-[9px] font-mono uppercase tracking-widest text-[#888] backdrop-blur-sm">
+                {meal.type}
+              </span>
+              <span className="font-serif text-2xl text-white">{meal.kcal} <span className="text-sm text-[#555] font-sans">kcal</span></span>
+            </div>
+
+            <div className="relative z-10">
+              <h3 className="font-sans text-2xl text-white font-medium mb-3 group-hover:text-[#F59E0B] transition-colors">{meal.name}</h3>
+              <div className="flex gap-2">
+                {meal.tags.map(tag => (
+                  <span key={tag} className="font-mono text-[9px] text-[#555] uppercase tracking-wider before:content-['#']">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+
+  const SportsView = () => (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.8, ease: customEase }}
+      className="w-full h-full pt-32 pb-24 px-8 md:px-24"
+    >
+      <h1 className="font-serif text-6xl md:text-8xl font-light tracking-tighter text-white mb-16">
+        Training <span className="text-[#38BDF8] italic">Grounds.</span>
+      </h1>
+
+      <div className="grid grid-cols-1 border-t border-white/10">
+        {SPORTS_DB.map((sport, idx) => (
+          <div key={sport.id} className="group border-b border-white/10 py-8 flex flex-col md:flex-row md:items-center justify-between cursor-pointer hover:bg-white/[0.02] px-4 -mx-4 transition-colors duration-300">
+            <div className="flex items-center gap-12">
+              <span className="font-mono text-sm text-[#444]">0{idx + 1}</span>
+              <h2 className="font-serif text-4xl md:text-5xl text-white group-hover:translate-x-4 transition-transform duration-500">{sport.name}</h2>
+            </div>
+            <div className="flex items-center gap-12 mt-6 md:mt-0 font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">
+              <span className="w-24">{sport.category}</span>
+              <span className="w-24">Impact: {sport.impact}</span>
+              <span className="w-24 text-[#38BDF8] opacity-0 group-hover:opacity-100 transition-opacity">Launch ↗</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+
+  return (
+    <div className="relative min-h-screen w-full bg-[#030303] text-[#EAEAEA] overflow-hidden selection:bg-white selection:text-black">
+
+      {/* --- NAVEGACIÓN FLOTANTE (ESTILO AGENCIA AWWWARDS) --- */}
+      <nav className="fixed top-8 left-1/2 -translate-x-1/2 z-50 flex items-center bg-white/[0.03] backdrop-blur-xl border border-white/[0.05] rounded-full p-2 gap-2 shadow-2xl">
+        {[
+          { id: 'calendar', icon: CalendarDays, label: 'Timeline' },
+          { id: 'meals', icon: Flame, label: 'Nutrition' },
+          { id: 'sports', icon: Dumbbell, label: 'Training' }
+        ].map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActiveView(item.id as ViewState)}
+            className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all duration-500 overflow-hidden
+              ${activeView === item.id ? 'text-black' : 'text-[#888] hover:text-white'}`}
+          >
+            {activeView === item.id && (
+              <motion.div
+                layoutId="nav-pill"
+                className="absolute inset-0 bg-white rounded-full z-0"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
+            <item.icon size={14} className="relative z-10" />
+            <span className="relative z-10">{item.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {/* --- CONTENIDO PRINCIPAL --- */}
+      <main className="relative w-full h-screen overflow-y-auto [scrollbar-width:none]">
+        <AnimatePresence mode="wait">
+          {activeView === 'calendar' && <CalendarView key="calendar" />}
+          {activeView === 'meals' && <MealsView key="meals" />}
+          {activeView === 'sports' && <SportsView key="sports" />}
+        </AnimatePresence>
+      </main>
+
+      {/* --- BOTÓN DE ACCIÓN RÁPIDA (FAB MAGNETICO) --- */}
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsQuickLogOpen(true)}
+        className="fixed bottom-12 right-12 z-40 w-16 h-16 bg-[#4FE3C1] text-black rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(79,227,193,0.3)] hover:shadow-[0_0_60px_rgba(79,227,193,0.5)] transition-shadow"
+      >
+        <Plus size={24} />
+      </motion.button>
+
+      {/* --- OVERLAY DE DÍA EXPANDIDO (SHARED LAYOUT ANIMATION) --- */}
+      <AnimatePresence>
+        {expandedDayId && (
+          <>
+            {/* Fondo oscuro al abrir el día */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 backdrop-blur-md z-50"
+              onClick={() => setExpandedDayId(null)}
+            />
+
+            {/* Tarjeta Expandida */}
+            <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4 md:p-12">
+              <motion.div
+                layoutId={`day-card-${expandedDayId}`}
+                className="w-full max-w-5xl h-[80vh] bg-[#0a0a0a] border border-white/10 rounded-[40px] pointer-events-auto flex flex-col md:flex-row overflow-hidden shadow-2xl"
+              >
+                {/* Panel Izquierdo: Info del Día */}
+                <div className="w-full md:w-1/3 bg-[#111] p-12 flex flex-col justify-between border-r border-white/5">
+                  <div>
+                    <motion.span layoutId={`day-name-${expandedDayId}`} className="font-mono text-xs uppercase tracking-[0.4em] text-[#4FE3C1]">
+                      {DAYS_DATA.find(d => d.id === expandedDayId)?.day}
+                    </motion.span>
+                    <motion.h2 layoutId={`day-date-${expandedDayId}`} className="font-serif text-8xl font-light text-white tracking-tighter mt-4">
+                      {DAYS_DATA.find(d => d.id === expandedDayId)?.date}
+                    </motion.h2>
+                    <p className="mt-8 font-sans text-[#888] leading-relaxed">
+                      Detailed telemetry and event mapping for this cycle. Active restoration and low-impact protocols engaged.
+                    </p>
+                  </div>
+                  <button onClick={() => setExpandedDayId(null)} className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-[#666] hover:text-white transition-colors">
+                    <X size={14} /> Close Panel
+                  </button>
+                </div>
+
+                {/* Panel Derecho: Eventos (Scrollable) */}
+                <div className="w-full md:w-2/3 p-12 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-12">
+                    <h3 className="font-serif text-3xl text-white">Execution Log</h3>
+                    <button className="font-mono text-[10px] uppercase tracking-widest text-[#4FE3C1] border border-[#4FE3C1]/30 px-4 py-2 rounded-full hover:bg-[#4FE3C1] hover:text-black transition-all">
+                      + Inject Event
+                    </button>
+                  </div>
+
+                  {/* Mock de eventos dentro del día expandido */}
+                  <div className="space-y-6">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="group border border-white/5 bg-white/[0.02] p-6 rounded-2xl flex items-center justify-between hover:border-white/20 transition-colors">
+                        <div>
+                          <span className="font-mono text-[10px] text-[#555]">14:30 · 90M</span>
+                          <h4 className="font-sans text-lg text-[#eee] mt-1">Metabolic Flush {i}</h4>
+                        </div>
+                        <ChevronRight className="text-[#333] group-hover:text-white transition-colors" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* --- COMMAND PALETTE (MODAL DE "POCOS CLICS") --- */}
+      <AnimatePresence>
+        {isQuickLogOpen && (
+          <motion.div
+            initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+            animate={{ opacity: 1, backdropFilter: 'blur(12px)' }}
+            exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+            className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 20, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-xl bg-[#0d0d0d] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#111]">
+                <input
+                  type="text"
+                  placeholder="Type a meal or sport..."
+                  className="bg-transparent border-none outline-none text-xl font-sans text-white w-full placeholder:text-[#444]"
+                  autoFocus
+                />
+                <button onClick={() => setIsQuickLogOpen(false)} className="text-[#555] hover:text-white"><X size={20} /></button>
+              </div>
+              <div className="p-2">
+                <div className="px-4 py-2 font-mono text-[9px] uppercase tracking-widest text-[#555]">Quick Suggestions</div>
+                <div className="p-2 hover:bg-white/[0.05] rounded-xl cursor-pointer flex justify-between items-center transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-full bg-[#38BDF8]/10 flex items-center justify-center text-[#38BDF8]"><Dumbbell size={14} /></div>
+                    <span className="font-sans text-white">Log Bouldering Session</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-[#555]">ENTER</span>
+                </div>
+                <div className="p-2 hover:bg-white/[0.05] rounded-xl cursor-pointer flex justify-between items-center transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-full bg-[#F59E0B]/10 flex items-center justify-center text-[#F59E0B]"><Flame size={14} /></div>
+                    <span className="font-sans text-white">Add Tonkotsu Ramen</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-[#555]">ENTER</span>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+    </div>
+  );
+}
+</file>
+
+<file path=".gitignore">
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+</file>
+
+<file path="AGENTS.md">
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+</file>
+
+<file path="CLAUDE.md">
+@AGENTS.md
+</file>
+
+<file path="eslint.config.mjs">
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
+]);
+
+export default eslintConfig;
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+</file>
+
+<file path="package.json">
+{
+  "name": "victus-lab",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "framer-motion": "^13.4.0",
+    "lucide-react": "^1.47.0",
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+</file>
+
+<file path="postcss.config.mjs">
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+</file>
+
+<file path="README.md">
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+</file>
+
+</files>
