@@ -1,91 +1,162 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X } from 'lucide-react';
+
+const MOCK_WEEK = [
+  { id: 'mon', dayOfWeek: 'MON', dateNum: 12, isToday: false, sport: 'MOBILITY FLOW', sportSub: 'Recovery', duration: '45 MIN', fuel: 'Optimal', fuelColor: 'text-[#4FE3C1]', lunch: 'Salad + Chicken', dinner: 'Fish + Veg' },
+  { id: 'tue', dayOfWeek: 'TUE', dateNum: 13, isToday: true, sport: 'VO2 MAX INTERVALS', sportSub: '8 × 400m', duration: '60 MIN', fuel: 'Low Fuel', fuelColor: 'text-[#F59E0B]', lunch: 'Salmon + Rice', dinner: 'Chicken + Potatoes' },
+  { id: 'wed', dayOfWeek: 'WED', dateNum: 14, isToday: false, sport: 'BASE AEROBIC', sportSub: 'Zone 2 Ride', duration: '90 MIN', fuel: 'Optimal', fuelColor: 'text-[#4FE3C1]', lunch: 'Pasta + Turkey', dinner: 'Steak + Asparagus' },
+  { id: 'thu', dayOfWeek: 'THU', dateNum: 15, isToday: false, sport: 'REST DAY', sportSub: 'Regeneration', duration: '-', fuel: 'Surplus', fuelColor: 'text-[#3B82F6]', lunch: 'Rice Bowl', dinner: 'Sushi' },
+  { id: 'fri', dayOfWeek: 'FRI', dateNum: 16, isToday: false, sport: 'STRENGTH', sportSub: 'Upper Body', duration: '60 MIN', fuel: 'Warning', fuelColor: 'text-[#FF6B6B]', lunch: 'Chicken Wrap', dinner: 'Beef Stir-fry' },
+  { id: 'sat', dayOfWeek: 'SAT', dateNum: 17, isToday: false, sport: 'LONG EFFORT', sportSub: 'Trail Run', duration: '120 MIN', fuel: 'Loading', fuelColor: 'text-[#3B82F6]', lunch: 'Pancakes', dinner: 'Pasta + Meatballs' },
+  { id: 'sun', dayOfWeek: 'SUN', dateNum: 18, isToday: false, sport: 'RECOVERY', sportSub: 'Sauna / Plunge', duration: '30 MIN', fuel: 'Optimal', fuelColor: 'text-[#4FE3C1]', lunch: 'Poke Bowl', dinner: 'Light Salad' },
+];
 
 export default function CalendarCycle() {
+  const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
+  const selectedDay = MOCK_WEEK.find((d) => d.id === selectedDayId);
+
   return (
-    <section className="w-full flex flex-col" style={{ transform: 'translateZ(15px)' }}>
-      <div className="flex justify-between items-end mb-2.5 px-1">
-        <div>
-          <h1 className="font-display text-2xl lg:text-3xl font-light text-white/90 tracking-wide leading-none">Current Cycle</h1>
-          <p className="text-micro text-white/40 mt-1 font-mono">Week 42 • Endurance Phase • Volume Peak</p>
-        </div>
-        <div className="flex items-center gap-4 text-micro font-mono">
-          <button className="text-white/40 hover:text-white transition-colors">&lt; PREV</button>
-          <span className="text-white/80">OCT 12 - OCT 18</span>
-          <button className="text-white/40 hover:text-white transition-colors">NEXT &gt;</button>
-        </div>
+    <section className="relative w-full">
+      <div className="grid grid-cols-7 gap-[clamp(8px,1vw,16px)] w-full [perspective:2000px]">
+        {MOCK_WEEK.map((day) => {
+          const isToday = day.isToday;
+          const isSelected = selectedDayId === day.id;
+          const hasSelection = selectedDayId !== null;
+
+          return (
+            <motion.div
+              key={day.id}
+              layoutId={`card-${day.id}`}
+              onClick={() => setSelectedDayId(day.id)}
+              animate={{
+                z: hasSelection && !isSelected ? -100 : 0,
+                scale: hasSelection && !isSelected ? 0.94 : 1,
+                opacity: hasSelection && !isSelected ? 0.3 : 1,
+              }}
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              // Altura fija h-[420px] para que nunca se aplasten con el flex de la página
+              className={`relative min-w-0 h-[420px] overflow-hidden rounded-[18px] flex flex-col p-4 xl:p-5 cursor-pointer transition-colors backdrop-blur-md ${isToday
+                  ? 'bg-[#121A25]/60 shadow-[0_15px_40px_rgba(0,0,0,0.5),inset_0_0_30px_rgba(79,227,193,0.08)]'
+                  : 'bg-[#080C12]/40 hover:bg-[#0B1018]/60'
+                }`}
+            >
+              <div className="flex flex-col items-start min-w-0 shrink-0">
+                <span className={`font-mono text-[11px] xl:text-xs font-medium truncate ${isToday ? 'text-[#4FE3C1]' : 'text-white/40'}`}>
+                  {day.dayOfWeek}
+                </span>
+                <span className="font-display text-[26px] xl:text-[32px] text-white/90 leading-none mt-1">
+                  {day.dateNum}
+                </span>
+                {isToday && (
+                  <span className="mt-2 rounded bg-[#4FE3C1]/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#4FE3C1] truncate">
+                    TODAY
+                  </span>
+                )}
+              </div>
+
+              <div className="flex-1 min-h-0 flex flex-col justify-center min-w-0 py-4">
+                <span className="font-mono text-[9px] uppercase tracking-widest text-white/30 truncate block">
+                  SPORT
+                </span>
+                <p className="mt-1 font-display text-sm xl:text-base leading-tight text-white/90 line-clamp-2 break-words">
+                  {day.sport}
+                </p>
+                <div className="mt-1.5 space-y-0.5">
+                  <p className="font-mono text-[10px] text-white/50 truncate">
+                    {day.sportSub}
+                  </p>
+                  <p className="font-mono text-[10px] text-white/50 truncate">
+                    {day.duration}
+                  </p>
+                </div>
+              </div>
+
+              <div className="min-w-0 shrink-0 flex flex-col justify-end">
+                <div className="flex flex-col min-w-0 mb-2.5">
+                  <span className="font-mono text-[9px] uppercase tracking-widest text-white/30 truncate">
+                    NUTRITION
+                  </span>
+                  <span className={`font-mono text-[9px] uppercase truncate mt-0.5 ${day.fuelColor}`}>
+                    {day.fuel}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 min-w-0 flex flex-col">
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-mono text-[8px] text-white/30 truncate">LUNCH</span>
+                    <span className="font-mono text-[10px] text-white/60 truncate">{day.lunch}</span>
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-mono text-[8px] text-white/30 truncate">DINNER</span>
+                    <span className="font-mono text-[10px] text-white/60 truncate">{day.dinner}</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-7 gap-4 xl:gap-5 w-full items-start">
-        {/* MON (Sin rayo gigante) */}
-        <div className="flex flex-col gap-1.5 group">
-          <div className="h-7 flex flex-col justify-end text-center pb-0.5">
-            <p className="text-micro text-white/30 leading-none">MON</p>
-            <p className="font-display text-sm lg:text-base font-light text-white/60 leading-tight">12</p>
-          </div>
-          <div className="glass-panel p-3 h-[150px] lg:h-[160px] flex flex-col justify-between cursor-pointer overflow-hidden">
-            <div className="rounded bg-white/[0.025] border border-white/[0.04] p-2 transition-colors hover:bg-white/[0.05]">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[9px] uppercase tracking-widest text-[#38bdf8]/90 font-medium">Active Recovery</span>
-                <svg className="w-3.5 h-3.5 text-[#38bdf8]/70 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-              </div>
-              <p className="text-xs font-light text-white/90 leading-tight">Mobility Flow</p>
-              <p className="text-[10px] text-white/40 mt-0.5 font-mono">45 min • 120 kcal</p>
-            </div>
-            <div className="rounded bg-white/[0.025] border border-white/[0.04] p-1.5 mt-auto">
-              <div className="w-full h-1 bg-white/[0.08] rounded-full overflow-hidden mb-1">
-                <div className="h-full bg-[#38bdf8]/50 w-[80%] rounded-full" />
-              </div>
-              <div className="flex justify-between text-[8px] text-white/40 uppercase tracking-wider font-mono">
-                <span>Protein</span><span className="text-white/80">160g</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <AnimatePresence>
+        {selectedDayId && selectedDay && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+              className="fixed inset-0 z-40 bg-[#030508]/70 backdrop-blur-md"
+              onClick={() => setSelectedDayId(null)}
+            />
 
-        {/* TUE */}
-        <div className="flex flex-col gap-1.5">
-          <div className="h-7 text-center pb-0.5 relative flex flex-col justify-end">
-            <p className="text-micro text-[#38bdf8] leading-none font-medium">TUE</p>
-            <p className="font-display text-sm lg:text-base font-normal text-white leading-tight">13</p>
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-[2px] bg-[#38bdf8] rounded-full shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
-          </div>
-          <div className="glass-panel p-3 h-[150px] lg:h-[160px] flex flex-col justify-between border-[#38bdf8]/40 bg-[rgba(16,26,45,0.45)] shadow-[0_15px_40px_-10px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.18)] cursor-pointer overflow-hidden z-10 scale-[1.02]">
-            <div className="rounded bg-cyan-900/25 border border-[#38bdf8]/30 p-2">
-              <span className="text-[9px] uppercase tracking-widest text-[#38bdf8] font-medium block mb-0.5">Primary Session</span>
-              <p className="text-xs font-medium text-white drop-shadow-md leading-tight">VO2 Max Intervals</p>
-              <p className="text-[10px] text-white/60 font-mono mt-0.5">Track • 8x400m</p>
-            </div>
-            <div className="rounded bg-white/[0.025] border border-white/[0.04] p-1.5 mt-auto">
-              <span className="text-[8px] uppercase tracking-widest text-white/50 font-mono block mb-0.5">Strength</span>
-              <p className="text-[11px] font-light text-white/80 leading-tight">Lower Body • 40 min</p>
-            </div>
-          </div>
-        </div>
+            <motion.div
+              layoutId={`card-${selectedDayId}`}
+              className="absolute inset-x-0 top-[5%] z-50 mx-auto flex w-full max-w-4xl h-[500px] flex-col rounded-[24px] bg-[#0A0D14] shadow-[0_40px_100px_rgba(0,0,0,1)] ring-1 ring-white/[0.05] overflow-hidden"
+            >
+              <div className="flex justify-between items-center p-8 bg-[#0D1219]/80 border-b border-white/[0.04]">
+                <div className="flex items-baseline gap-4">
+                  <span className="font-display text-4xl text-white">{selectedDay.dayOfWeek} {selectedDay.dateNum}</span>
+                  <span className="font-mono text-xs uppercase tracking-widest text-[#4FE3C1]">Deep Dive Inspector</span>
+                </div>
+                {/* BOTÓN X MEJORADO (y con e.stopPropagation() para que funcione) */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedDayId(null);
+                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 border border-white/10 text-white/50 hover:bg-white/10 hover:text-white transition-all backdrop-blur-md cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-        {/* WED a SUN (Estructura base idéntica ajustada a 150px) */}
-        <div className="flex flex-col gap-1.5 group">
-          <div className="h-7 flex flex-col justify-end text-center pb-0.5"><p className="text-micro text-white/30 leading-none">WED</p><p className="font-display text-sm lg:text-base font-light text-white/60 leading-tight">14</p></div>
-          <div className="glass-panel p-3 h-[150px] lg:h-[160px] flex flex-col justify-between cursor-pointer overflow-hidden"><div className="rounded bg-white/[0.025] border border-white/[0.04] p-2 hover:bg-white/[0.05]"><span className="text-[9px] uppercase tracking-widest text-white/60 block mb-0.5">Base Aerobic</span><p className="text-xs font-light text-white/80 leading-tight">Zone 2 Ride</p><p className="text-[10px] text-white/40 mt-0.5 font-mono">90 min • 850 kcal</p></div><div className="text-[8px] text-white/30 font-mono text-center pb-1 mt-auto">Aerobic Flush Complete</div></div>
-        </div>
-        <div className="flex flex-col gap-1.5 group">
-          <div className="h-7 flex flex-col justify-end text-center pb-0.5"><p className="text-micro text-white/30 leading-none">THU</p><p className="font-display text-sm lg:text-base font-light text-white/60 leading-tight">15</p></div>
-          <div className="glass-panel p-3 h-[150px] lg:h-[160px] flex flex-col items-center justify-center text-center opacity-70 hover:opacity-100 transition-opacity cursor-pointer overflow-hidden"><svg className="w-5 h-5 text-white/40 mb-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.2" d="M20 12H4M8 16l-4-4 4-4M16 8l4 4-4 4" /></svg><p className="text-micro text-white/70 font-medium">Rest Day</p><p className="text-[10px] text-white/40 mt-0.5 font-mono">Regeneration</p></div>
-        </div>
-        <div className="flex flex-col gap-1.5 group">
-          <div className="h-7 flex flex-col justify-end text-center pb-0.5"><p className="text-micro text-white/30 leading-none">FRI</p><p className="font-display text-sm lg:text-base font-light text-white/60 leading-tight">16</p></div>
-          <div className="glass-panel p-3 h-[150px] lg:h-[160px] flex flex-col justify-between cursor-pointer overflow-hidden"><div className="rounded bg-white/[0.025] border border-white/[0.04] p-2 hover:bg-white/[0.05]"><span className="text-[9px] uppercase tracking-widest text-white/60 block mb-0.5">Strength</span><p className="text-xs font-light text-white/80 leading-tight">Upper Body</p><p className="text-[10px] text-white/40 mt-0.5 font-mono">60 min</p></div><div className="rounded bg-white/[0.025] border border-white/[0.04] p-1.5 border-l-2 border-l-yellow-500/80 mt-auto"><span className="text-[8px] text-yellow-500/90 font-medium font-mono uppercase block">Warning</span><p className="text-[8px] text-white/70 leading-tight mt-0.5">Hydration target missed.</p></div></div>
-        </div>
-        <div className="flex flex-col gap-1.5 group">
-          <div className="h-7 flex flex-col justify-end text-center pb-0.5"><p className="text-micro text-white/30 leading-none">SAT</p><p className="font-display text-sm lg:text-base font-light text-white/60 leading-tight">17</p></div>
-          <div className="glass-panel p-3 h-[150px] lg:h-[160px] flex flex-col justify-between cursor-pointer overflow-hidden"><div className="rounded bg-white/[0.025] border border-white/[0.04] p-2 hover:bg-white/[0.05]"><span className="text-[9px] uppercase tracking-widest text-white/60 block mb-0.5">Long Effort</span><p className="text-xs font-light text-white/80 leading-tight">Trail Run</p><p className="text-[10px] text-white/40 mt-0.5 font-mono">120 min • 1400 kcal</p></div><div className="pt-1.5 border-t border-white/[0.06] mt-auto"><p className="text-[8px] text-white/40 uppercase tracking-widest mb-1 font-mono">Fuel Prep</p><div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden"><div className="h-full bg-[#38bdf8]/60 w-[40%] rounded-full" /></div></div></div>
-        </div>
-        <div className="flex flex-col gap-1.5 group">
-          <div className="h-7 flex flex-col justify-end text-center pb-0.5"><p className="text-micro text-white/30 leading-none">SUN</p><p className="font-display text-sm lg:text-base font-light text-white/60 leading-tight">18</p></div>
-          <div className="glass-panel p-3 h-[150px] lg:h-[160px] flex flex-col items-center justify-center text-center opacity-70 hover:opacity-100 transition-opacity cursor-pointer overflow-hidden"><svg className="w-5 h-5 text-white/40 mb-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg><p className="text-micro text-white/70 font-medium">Recovery</p><p className="text-[10px] text-white/40 mt-0.5 font-mono">Sauna / Plunge</p></div>
-        </div>
-      </div>
+              <div className="p-8 grid grid-cols-2 gap-12 flex-1">
+                <div>
+                  <h3 className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-4">Training Telemetry</h3>
+                  <p className="font-display text-2xl text-white">{selectedDay.sport}</p>
+                  <p className="font-mono text-sm text-white/50 mt-2">{selectedDay.sportSub} · Detailed physiological strain estimation active.</p>
+                </div>
+                <div>
+                  <h3 className="font-mono text-[10px] uppercase tracking-widest text-white/30 mb-4">Nutritional Protocol</h3>
+                  <div className="space-y-4">
+                    <div className="bg-white/[0.02] p-4 rounded-lg">
+                      <span className="font-mono text-[10px] text-white/40 block mb-1">LUNCH</span>
+                      <span className="font-mono text-sm text-white">{selectedDay.lunch}</span>
+                    </div>
+                    <div className="bg-white/[0.02] p-4 rounded-lg">
+                      <span className="font-mono text-[10px] text-white/40 block mb-1">DINNER</span>
+                      <span className="font-mono text-sm text-white">{selectedDay.dinner}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

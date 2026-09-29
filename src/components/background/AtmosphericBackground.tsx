@@ -16,16 +16,6 @@ export default function AtmosphericBackground() {
     let particles: Particle[] = [];
     let animationFrameId: number;
 
-    const resizeCanvas = () => {
-      width = window.innerWidth;
-      height = window.innerHeight;
-      canvas.width = width;
-      canvas.height = height;
-    };
-
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
     class Particle {
       x: number;
       y: number;
@@ -62,7 +52,6 @@ export default function AtmosphericBackground() {
         if (!ctx) return;
         const currentOpacity = this.opacity * (0.8 + Math.sin(this.pulseVal) * 0.25);
 
-        // Suavizado total mediante gradiente radial (elimina puntos duros)
         const rad = Math.max(1, this.radius);
         const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, rad * 2.2);
         grad.addColorStop(0, `rgba(235, 245, 255, ${currentOpacity})`);
@@ -85,10 +74,32 @@ export default function AtmosphericBackground() {
       }
     };
 
+    // Alerta de Zoom/Resize controlada (Debounce)
+    let resizeTimeout: NodeJS.Timeout;
+    const handleResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        // Regenerar partículas para que ocupen todo el espacio real tras el zoom
+        initParticles();
+      }, 250);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Set initial size
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    initParticles();
+
     const animate = () => {
       ctx.clearRect(0, 0, width, height);
 
-      // Nebulosas atmosféricas flotando en la lejanía
       const time = Date.now() * 0.0003;
       const orb1X = width * 0.25 + Math.sin(time * 0.7) * 140;
       const orb1Y = height * 0.35 + Math.cos(time * 0.5) * 100;
@@ -106,11 +117,11 @@ export default function AtmosphericBackground() {
       animationFrameId = requestAnimationFrame(animate);
     };
 
-    initParticles();
     animate();
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimeout);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
